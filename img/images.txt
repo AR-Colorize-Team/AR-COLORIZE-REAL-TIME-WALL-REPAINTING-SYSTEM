@@ -1,1 +1,28 @@
-List of  images
+AR Colorize - Real-Time Wall Repainting System
+Image Assets and Resources
+
+This folder contains image assets for the AR Colorize project:
+
+1. System Architecture Diagram
+   - Shows the overall system design
+   - Components: Camera Input -> Wall Detection -> Color Overlay -> AR Display
+
+2. Wall Detection Output
+   - Example of wall surface detection
+   - Demonstrates edge detection and masking
+
+3. AR Color Overlay Output
+   - Example of color application on detected walls
+   - Shows real-time color transformation
+
+4. User Interface Screenshots
+   - Web interface with color palette
+   - Camera feed and processed output side-by-side
+
+5. Sample Wall Images
+   - Test images for wall detection algorithm
+   - Various lighting conditions and wall types
+
+Note: Actual image files should be placed in this directory.
+Supported formats: PNG, JPG, JPEG
+

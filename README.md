@@ -55,6 +55,6 @@ This project is brought to you by:
 * Integration with smart home systems for dynamic lighting simulation.
 * Advanced object detection to automatically mask furniture/decor.
 * Collaborative design features for multiple users.
-* Integration with IoT color sensors for precise color matching.
+* Integration with IoT color sensors for precise color matching...
 
 ---

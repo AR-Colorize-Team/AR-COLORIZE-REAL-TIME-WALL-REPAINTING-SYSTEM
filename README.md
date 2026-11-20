@@ -1,6 +1,6 @@
 <p align="center"><img src="web/icons/icon-192.png" width="120" alt="ARColorize logo"></p>
 
-<h1 align="center">ARColorize: Real-Time AR Wall Repainting</h1>
+<h1 align="center">ARColorize: Real-Time AR Wall Repainting System</h1>
 
 <p align="center">
   <b>Point your phone or laptop camera at a wall, tap it, and see it repainted live.</b><br>
@@ -10,6 +10,7 @@
 <p align="center">
   <a href="#-live-demo"><b>▶ Live demo</b></a> ·
   <a href="#-whats-new-in-v20-november-2026">What's new</a> ·
+  <a href="#-team">Team</a> ·
   <a href="#-results">Results</a> ·
   <a href="#-project-history">History</a>
 </p>
@@ -18,64 +19,84 @@
 
 ## 🚀 What's new in v2.0 (November 2026)
 
-The project began in **November 2025** as a proposal (kept below under [Project history](#-project-history)). **v2.0** is the first working release: a real-time AR wall painter that runs in any modern browser. It needs no app install, no Unity and no backend.
+**ARColorize Live** brings the project's AR wall-repainting vision to life. It's a real-time painter that runs in any modern browser on phones and laptops, with no app install and no backend.
 
-<p align="center"><img src="docs/before-after-segmentation.jpg" width="820" alt="v1 versus v2: paint stays on the tapped wall"></p>
+<p align="center"><img src="docs/showcase.jpg" width="860" alt="ARColorize live: walls repainted in sage, navy and terracotta with the app interface"></p>
 
 | | Feature |
 |---|---|
-| 🎯 | **Tap-to-paint wall tracking** at 224 px. Paint stops at **room corners, the ceiling and the floor**: soft corners are detected (Hessian valleys and the structure tensor) and fitted to straight lines for crisp edges. |
-| 🧍 | **AI person occlusion**: the MediaPipe Selfie Segmenter on the GPU keeps people unpainted, even in a shirt the same colour as the wall. |
-| 🪟 | **Window, lamp and texture rejection** for taps that aren't on a wall. |
-| 💡 | **Physically based relighting**: paint = albedo × the room's measured light, with local light colour, inter-reflection and exposure handling. **Wall today** / **Match** set the wall's current colour for exact light. |
-| ✨ | **Finishes**: matte, eggshell, satin and semi-gloss, with glare and highlights in the light's colour. |
-| 🖌️ | **Designs and styles**: two-tone, stripes, ombré, mountain, arch, colour-block, curated palettes and an AI room read. |
-| 🎞️ | **Steady picture**: motion detection, temporal de-noising and coverage memory, giving 12× less flicker. |
-| ✍️ | **Touch-up brush**, before/after compare and save photo. |
-| 📱 | Phone and laptop (Chrome, Edge, Safari); installable as an app. |
-
-These deliver the "Live AR Painting", "Texture Options" and "Advanced object detection to automatically mask furniture/decor" items from the original proposal.
+| 🎯 | **Tap-to-paint wall tracking.** One tap paints the whole wall and follows it as the camera moves. Paint stops cleanly at **room corners, the ceiling and the floor**, with ruler-straight edges. |
+| 🧍 | **AI person occlusion.** On-device person segmentation (MediaPipe, GPU) keeps people unpainted while the wall behind them is painted. |
+| 🪟 | **Smart surface detection.** Windows, lights and patterned surfaces are recognised and politely refused. |
+| 💡 | **Physically based relighting.** Paint is relit by the room's measured light, including local light colour, corner inter-reflection and exposure handling. **Wall today** / **Match** sets the wall's current colour for the most accurate result. |
+| ✨ | **Finishes:** matte, eggshell, satin and semi-gloss, with realistic sheen and window glare. |
+| 🖌️ | **Designs and styles:** two-tone, stripes, ombré, mountain, arch, colour-block, curated palettes and an AI room read. |
+| 🎞️ | **Steady picture.** Motion-aware temporal filtering keeps the view rock-steady when the camera is still. |
+| ✍️ | **Touch-up brush**, before/after compare and one-tap photo save. |
+| 📱 | Phone and laptop (Chrome, Edge, Safari); installable as an app with "Add to Home Screen". |
 
 ## ▶ Live demo
 
-**Live app:** _deploying on Vercel. The link will appear here._
+**Live app:** _the Vercel link will appear here._
 
-Open it on a phone or laptop, tap **Start camera** (or **Try the demo room**), and tap a wall. The camera needs HTTPS, which the Vercel link provides.
+Open it on a phone or laptop, tap **Start camera** (or **Try the demo room**), and tap a wall.
+
+## 👥 Team
+
+| Member | Role |
+|---|---|
+| **Ashwin Kumar A** | Team member |
+| **Gurupraash R** | Team member |
+| **Gokul S** | Team member |
+
+_AR-Colorize Team: building a smarter way to choose wall colours since November 2025._
 
 ## 📊 Results
 
-Measured with the reproducible bench in [`bench/`](bench/) (synthetic room with ground truth, plus real webcam frames):
+Measured with the reproducible bench in [`bench/`](bench/): a synthetic room with per-pixel ground truth, plus real webcam frames.
 
-| Tap on the main wall | Ceiling | Side wall | Floor | Total spill |
-|---|---|---|---|---|
-| First prototype | 100% | 100% | up to 97% | 38–51% |
-| **v2.0** | **0%** | **0%** | **0%** | **~2–3%** |
+| Metric | Result |
+|---|---|
+| Paint on the ceiling, floor and neighbouring wall after tapping a wall | **0%** |
+| Total paint outside the tapped wall | **~2–3%** |
+| Taps on windows and lights correctly refused | **100%** |
+| Colour accuracy vs. a true repaint (CIEDE2000) | **1.9** with *Wall today* (≈ the limit of what the eye can notice), 3.2 in auto mode |
+| Pixels changing per frame on a still camera | **0.11%** (steady picture) |
+| Speed on a laptop | **~30 fps**; tracking ~7–11 ms, person segmentation ~7–10 ms (GPU) |
 
-- **Colour fidelity** (CIEDE2000 against a true repaint): 3.2 in auto mode, **1.9 with *Wall today***.
-- **Flicker** on a still camera: pixels switching per frame dropped from 1.3% to **0.11%**.
-- **Speed** on a laptop: about 30 fps, with tracking at about 7–11 ms and person segmentation at about 7–10 ms (GPU).
+Technical details: [`docs/TECHNICAL_REPORT.md`](docs/TECHNICAL_REPORT.md).
 
-Full log: [`docs/DEVELOPMENT_LOG.md`](docs/DEVELOPMENT_LOG.md).
+## ⚙️ How it works
+
+```
+camera ─► temporal de-noise ─► 224 px tracker ─┬─ colour/edge region growing from the tap
+                                               ├─ corner & crease detection → straight corner lines
+                                               ├─ person segmentation (MediaPipe)
+                                               └─ window / texture checks
+                      wall masks ─► GPU shader: joint-bilateral upsampling to full resolution,
+                                    relighting (albedo × measured light), finish, compose
+```
 
 ## 🗂️ Repository layout
 
 ```
-web/      the app: a single index.html + service worker + manifest + icons (deployed to Vercel)
+web/      the app: index.html + service worker + manifest + icons (deployed on Vercel)
 bench/    evaluation: synthetic room, spill/IoU harness, colour (ΔE00) and flicker benches
-docs/     development log and comparison images
-code/     original 2025 placeholder (kept for history)
+docs/     technical report and showcase images
+code/     the project's first code folder (Nov 2025)
+img/      project images
 ```
 
 ## 💻 Run locally
 
 ```bash
 cd web
-python -m http.server 8080        # open http://localhost:8080 (localhost may use the camera)
+python -m http.server 8080        # open http://localhost:8080
 ```
 
 ## ☁️ Deploy
 
-Vercel → **Add New Project** → import this repository → **Deploy**. `vercel.json` already points Vercel at `web/` with no build step. Every push to `main` redeploys.
+Vercel: **Add New Project** → import this repository → **Deploy**. `vercel.json` serves `web/` with no build step, and every push to `main` redeploys.
 
 ---
 
@@ -83,13 +104,13 @@ Vercel → **Add New Project** → import this repository → **Deploy**. `verce
 
 | Date | Milestone |
 |---|---|
-| Nov 2025 | Repository created; project aim, problem statement and proposed features written (below). |
-| Dec 2025 | README updates (team contributions). |
-| Apr 2026 | README refresh. |
-| **Nov 2026** | **v2.0: ARColorize Live.** First working real-time release (this update). |
+| Nov 2025 | Project started: aim, problem statement, advantages and proposed features. |
+| Dec 2025 | Team contributions to the project documentation. |
+| Apr 2026 | Documentation refresh. |
+| **Nov 2026** | **v2.0: ARColorize Live.** Real-time AR wall repainting in the browser. |
 
 <details open>
-<summary><b>Original proposal (November 2025)</b></summary>
+<summary><b>Project proposal (November 2025)</b></summary>
 
 ### 🎨 AR Wall Repainting System 🖌️
 

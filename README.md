@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="#-live-demo"><b>▶ Live demo</b></a> ·
+  <a href="https://arcolorize.vercel.app"><b>▶ Live demo</b></a> ·
   <a href="#-whats-new-in-v20-november-2026">What's new</a> ·
   <a href="#-team">Team</a> ·
   <a href="#-results">Results</a> ·
@@ -37,7 +37,7 @@
 
 ## ▶ Live demo
 
-**Live app:** _the Vercel link will appear here._
+### 👉 **[arcolorize.vercel.app](https://arcolorize.vercel.app)**
 
 Open it on a phone or laptop, tap **Start camera** (or **Try the demo room**), and tap a wall.
 

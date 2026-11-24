@@ -1,0 +1,7 @@
+<!-- Merge into ios/Runner/Info.plist -->
+<key>NSCameraUsageDescription</key>
+<string>The camera shows your walls so you can try paint colours on them live. Nothing is recorded unless you save a photo.</string>
+<key>NSPhotoLibraryAddUsageDescription</key>
+<string>Save your before/after photos to your library.</string>
+<!-- Do NOT add "arkit" to UIRequiredDeviceCapabilities: non-AR devices still get photo mode. -->
+<!-- Add WallSegmenter.mlpackage (from the model export pipeline) to the Runner target. -->

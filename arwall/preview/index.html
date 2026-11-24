@@ -1,0 +1,751 @@
+<title>AR Wall Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: camera stage left, one-thumb control dock right (stacks under the stage on phones). Single dark "camera" look, same tokens as the app. */
+:root {
+  color-scheme: dark;
+  --ground: #121110;      /* app chrome behind the camera */
+  --glass: #1E1C1A;       /* dock surfaces */
+  --glass-2: #2A2724;     /* raised chips */
+  --line: #3A3733;
+  --ink: #F7F3ED;         /* primary text */
+  --muted: #B8B0A4;       /* secondary text (7.9:1 on ground) */
+  --brass: #C9A46A;       /* the one accent: Pro, AI, focus */
+  --sage: #8FA382;
+  --warn: #E0B65C;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-sm: 10px; --r-md: 16px; --r-lg: 24px;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--ground); color: var(--ink); }
+body {
+  font-family: var(--ui); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 28px;
+}
+button, input, label.btn { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.app { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 960px) { .app { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; } }
+
+header.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mark { font-weight: 700; letter-spacing: .3px; font-size: 16px; }
+.chip-tag { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: var(--brass); border: 1px solid var(--brass); border-radius: 999px; padding: 3px 9px; }
+.bar .sp { flex: 1; }
+.btn {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px;
+  border-radius: 999px; background: var(--glass-2); border: 1px solid var(--line); font-weight: 600; font-size: 13px;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.btn[disabled] { opacity: .45; cursor: default; }
+.btn svg { width: 17px; height: 17px; }
+
+/* Stage */
+.stage { position: relative; border-radius: var(--r-lg); overflow: hidden; background: #000; touch-action: none; user-select: none; }
+.stage canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+.coach {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%); max-width: calc(100% - 28px);
+  background: rgba(18,17,16,.72); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px; padding: 8px 14px; font-size: 13px; text-align: center; pointer-events: none;
+}
+.split { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; pointer-events: none; }
+.split .knob { position: absolute; top: 50%; left: -21px; width: 44px; height: 44px; margin-top: -22px; border-radius: 999px; background: #fff; display: grid; place-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+.split .knob svg { width: 20px; height: 20px; }
+.tag { position: absolute; top: 14px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #161514; background: rgba(255,255,255,.85); border-radius: 999px; padding: 3px 9px; pointer-events: none; }
+.busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.35); font-weight: 600; }
+
+/* Dock */
+.dock { background: var(--glass); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.current { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dot { width: 30px; height: 30px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); flex: none; }
+.dots { display: flex; }
+.dots .dot + .dot { margin-left: -9px; }
+.current .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.current .name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.current .sub { font-size: 12px; color: var(--muted); }
+.walls { display: flex; gap: 6px; flex-wrap: wrap; }
+.wall-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px 0 10px; border-radius: 999px; background: var(--glass-2); border: 1px solid var(--line); font-size: 12px; font-weight: 600; }
+.wall-chip[aria-pressed="true"] { border-color: var(--ink); }
+.wall-chip .sw { width: 14px; height: 14px; border-radius: 999px; }
+.wall-chip .x { width: 22px; height: 22px; border-radius: 999px; border: 0; background: transparent; display: grid; place-items: center; color: var(--muted); }
+
+.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: var(--ground); border-radius: 999px; padding: 4px; }
+.tabs button { height: 34px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; font-size: 12px; }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--ground); }
+.tabs button.ai { color: var(--brass); }
+.tabs button.ai[aria-selected="true"] { color: var(--ground); }
+
+.panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.label { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; color: var(--muted); text-transform: uppercase; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 10px 6px; }
+.swatch { border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; }
+.swatch span:first-child { width: 46px; height: 46px; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.18); }
+.swatch[aria-pressed="true"] span:first-child { outline: 3px solid var(--ink); outline-offset: 3px; }
+.swatch span:last-child { font-size: 11px; color: var(--muted); }
+.swatch[aria-pressed="true"] span:last-child { color: var(--ink); }
+.seg { display: inline-flex; background: var(--ground); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; color: var(--muted); border-radius: 999px; height: 30px; padding: 0 12px; font-size: 12px; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--glass-2); color: var(--ink); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.custom { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.custom input[type=color] { width: 34px; height: 34px; border: 0; background: transparent; padding: 0; }
+
+.patterns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 8px; }
+.pat { border: 0; background: transparent; padding: 0; display: flex; flex-direction: column; gap: 5px; align-items: stretch; text-align: center; }
+.pat canvas { width: 100%; aspect-ratio: 6 / 5; border-radius: var(--r-sm); border: 1px solid rgba(255,255,255,.2); }
+.pat[aria-pressed="true"] canvas { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pat span { font-size: 11px; color: var(--muted); }
+.pat[aria-pressed="true"] span { color: var(--ink); }
+.hint { font-size: 12px; color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--brass); }
+
+.styles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.style { border: 1px solid var(--line); background: var(--glass-2); border-radius: var(--r-md); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column; }
+.style .strip { display: flex; height: 34px; }
+.style .strip i { flex: 1; }
+.style b { font-size: 13px; padding: 8px 10px 0; }
+.style small { font-size: 11px; color: var(--muted); padding: 0 10px 9px; }
+
+.ai-cta { border: 1px solid rgba(201,164,106,.55); background: #231F1A; border-radius: var(--r-md); padding: 14px; display: flex; gap: 12px; align-items: center; text-align: left; width: 100%; }
+.ai-cta svg { width: 26px; height: 26px; color: var(--brass); flex: none; }
+.ai-cta b { display: block; font-size: 15px; }
+.ai-cta small { color: var(--muted); font-size: 12px; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fact { background: var(--glass-2); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fact b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.fact span { font-size: 11px; color: var(--muted); }
+.summary { font-size: 14px; line-height: 1.5; }
+.constraints { margin: 0; padding-left: 18px; color: var(--ink); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.pal { background: #F7F3ED; color: #161514; border-radius: var(--r-md); overflow: hidden; }
+.pal .strip { display: grid; grid-template-columns: 3fr 1fr 1fr 1fr; height: 56px; }
+.pal .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.pal .num { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #86642F; }
+.pal h3 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 20px; }
+.pal .tl { font-size: 12px; color: #5F5951; }
+.pal p { margin: 0; font-size: 13px; line-height: 1.45; }
+.pal p b { font-weight: 600; }
+.pal .warn { font-size: 12px; color: #6E5226; }
+.pal .try { margin-top: 4px; height: 42px; border-radius: 999px; border: 0; background: #161514; color: #F7F3ED; font-weight: 600; }
+.source { font-size: 11px; color: var(--muted); }
+.thinking { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.spin { width: 18px; height: 18px; border-radius: 999px; border: 2px solid var(--line); border-top-color: var(--brass); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.foot { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--ground); border-radius: 999px; padding: 9px 16px; font-weight: 600; font-size: 13px; z-index: 20; max-width: calc(100% - 32px); text-align: center; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+
+<div class="app">
+  <header class="bar">
+    <span class="mark">AR Wall</span><span class="chip-tag">PREVIEW</span>
+    <span class="sp"></span>
+    <label class="btn primary" for="photo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      Use my room photo
+    </label>
+    <input id="photo" class="vh" type="file" accept="image/*" capture="environment">
+    <button class="btn" id="sampleBtn" type="button">Sample room</button>
+    <button class="btn" id="undoBtn" type="button" disabled aria-label="Undo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
+    <button class="btn" id="saveBtn" type="button" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 19h14"/></svg>Save image</button>
+  </header>
+
+  <section class="stage" id="stage" aria-label="Room preview. Tap a wall to paint it.">
+    <canvas id="view" width="960" height="640"></canvas>
+    <div class="coach" id="coach" role="status">Tap any wall to paint it</div>
+    <div class="split" id="split" hidden><div class="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#161514" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div></div>
+    <span class="tag" id="tagBefore" hidden>BEFORE</span><span class="tag" id="tagAfter" hidden>AFTER</span>
+    <div class="busy" id="busy" hidden>Finding the wall…</div>
+  </section>
+
+  <aside class="dock" aria-label="Paint controls">
+    <div class="current">
+      <span class="dots" id="curDots"></span>
+      <span class="txt"><span class="name" id="curName">Sage</span><span class="sub" id="curSub">Solid · Matte</span></span>
+      <button class="btn" id="compareBtn" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>Compare</button>
+    </div>
+    <div class="walls" id="walls" aria-label="Painted walls"></div>
+
+    <div class="tabs" role="tablist" aria-label="Tools">
+      <button role="tab" id="t-colours" aria-selected="true" aria-controls="p-colours">Colours</button>
+      <button role="tab" id="t-designs" aria-selected="false" aria-controls="p-designs">Designs</button>
+      <button role="tab" id="t-styles" aria-selected="false" aria-controls="p-styles">Styles</button>
+      <button role="tab" id="t-ai" class="ai" aria-selected="false" aria-controls="p-ai">✦ AI</button>
+    </div>
+
+    <div class="panel" id="p-colours" role="tabpanel" aria-labelledby="t-colours">
+      <div class="row" id="editRow" hidden>
+        <span class="label">Editing</span>
+        <span class="seg"><button type="button" id="editA" aria-pressed="true">Base colour</button><button type="button" id="editB" aria-pressed="false">Design colour</button></span>
+      </div>
+      <div class="swatches" id="swatches"></div>
+      <div class="row">
+        <label class="custom" for="customColor"><input type="color" id="customColor" value="#9caf88">Any colour</label>
+      </div>
+      <span class="label">Finish</span>
+      <span class="seg" id="finishes"></span>
+    </div>
+
+    <div class="panel" id="p-designs" role="tabpanel" aria-labelledby="t-designs" hidden>
+      <div class="patterns" id="patterns"></div>
+      <span class="hint" id="patHint">Designs are measured on the wall in metres: an arch is 1.4 m wide, stripes 30 cm.</span>
+    </div>
+
+    <div class="panel" id="p-styles" role="tabpanel" aria-labelledby="t-styles" hidden>
+      <div class="styles" id="styles"></div>
+      <span class="hint">A style repaints the selected wall with a curated look.</span>
+    </div>
+
+    <div class="panel" id="p-ai" role="tabpanel" aria-labelledby="t-ai" hidden>
+      <button class="ai-cta" id="aiBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+        <span><b>Analyse my room</b><small id="aiSub">Reads your light &amp; furniture · 3 palettes</small></span>
+      </button>
+      <div id="aiOut" class="panel"></div>
+    </div>
+
+    <details>
+      <summary class="hint" style="cursor:pointer">Wall detection settings</summary>
+      <label class="hint" for="sens" style="display:block;margin-top:8px">Edge sensitivity — lower it if paint spills onto furniture, raise it if the wall isn’t fully covered</label>
+      <input id="sens" type="range" min="0.5" max="2" step="0.05" value="1">
+    </details>
+  </aside>
+
+  <p class="foot">This browser preview runs the same lighting-preserving paint maths as the app. The app uses the live camera with ARKit/ARCore wall tracking; here you tap a photo instead.</p>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- data
+const COLORS = [["#F2EEE6","Linen"],["#E9E4DA","Oat"],["#D9CFC1","Sandstone"],["#9CAF88","Sage"],["#6E7F64","Olive"],["#3F5E4B","Forest"],["#C9D8DE","Mist"],["#7FA1B3","Harbour"],["#1F2A44","Midnight"],["#D8A7A0","Blush"],["#C46A4A","Terracotta"],["#E0B65C","Ochre"],["#7A6C9B","Heather"],["#2B2F36","Graphite"]];
+const PATTERNS = [
+  {id:0,key:"solid",label:"Solid",hint:"One colour, wall to wall"},
+  {id:1,key:"two_tone",label:"Two-tone",hint:"Lower band at chair-rail height (95 cm)"},
+  {id:2,key:"stripes_vertical",label:"Stripes",hint:"30 cm vertical stripes add height"},
+  {id:3,key:"stripes_horizontal",label:"Bands",hint:"25 cm horizontal bands widen a room"},
+  {id:4,key:"ombre",label:"Ombré",hint:"Soft fade from ceiling to floor"},
+  {id:5,key:"mountain",label:"Mountain",hint:"Geometric peaks, great for kids’ rooms"},
+  {id:6,key:"arch",label:"Arch",hint:"A painted arch, 1.4 m wide, 2.1 m tall"},
+  {id:7,key:"color_block",label:"Block",hint:"A colour block to zone a space"},
+];
+const FINISHES = {flat:[0,0],matte:[0.05,0],eggshell:[0.15,0.03],satin:[0.30,0.06],semi_gloss:[0.50,0.10]};
+const FINISH_LABEL = {matte:"Matte",eggshell:"Eggshell",satin:"Satin",semi_gloss:"Semi-gloss"};
+const STYLES = [
+  {name:"Scandinavian Calm",mood:"Airy · restful",sw:["#E9E4DA","#F7F5F0","#FBFAF7","#D9CFC1"],look:{a:"#E9E4DA",nameA:"Oat",pattern:0,finish:"matte"}},
+  {name:"Modern Luxe",mood:"Moody · dramatic",sw:["#2B2F36","#1F2226","#F2EFEA","#B08D57"],look:{a:"#2B2F36",nameA:"Graphite",pattern:0,finish:"eggshell"}},
+  {name:"Japandi",mood:"Grounded · minimal",sw:["#D9CFC1","#8C7B6B","#5B4E44","#F4F0EA"],look:{a:"#D9CFC1",b:"#8C7B6B",nameA:"Sandstone",nameB:"Walnut",pattern:1,finish:"matte"}},
+  {name:"Warm Terracotta",mood:"Sunny · sociable",sw:["#EFE6D8","#C46A4A","#7A4B33","#F7F2EA"],look:{a:"#EFE6D8",b:"#C46A4A",nameA:"Plaster",nameB:"Terracotta",pattern:6,finish:"matte"}},
+  {name:"Coastal",mood:"Fresh · light",sw:["#F6F6F2","#9FB7C3","#C9D8DE","#FFFFFF"],look:{a:"#F6F6F2",b:"#9FB7C3",nameA:"Salt",nameB:"Harbour",pattern:2,finish:"satin"}},
+  {name:"Forest Retreat",mood:"Natural · cocooning",sw:["#E8DFD0","#3F5E4B","#8FA382","#F3EFE7"],look:{a:"#E8DFD0",b:"#3F5E4B",nameA:"Parchment",nameB:"Forest",pattern:5,finish:"matte"}},
+  {name:"Dusk Ombré",mood:"Dreamy · soft",sw:["#F4E9DC","#7A6C9B","#C98C8C","#F8F3EC"],look:{a:"#F4E9DC",b:"#7A6C9B",nameA:"Shell",nameB:"Heather",pattern:4,finish:"matte"}},
+  {name:"Midnight Gallery",mood:"Tailored · cinematic",sw:["#1F2A44","#3A4A68","#B08D57","#E9E4DA"],look:{a:"#E9E4DA",b:"#1F2A44",nameA:"Ivory",nameB:"Midnight",pattern:1,finish:"eggshell"}},
+];
+const CURATED = [
+  {name:"Morning Linen",tagline:"Soft, sunlit calm",tone:"warm",psychology:"Pale warm neutrals quiet the eye and help you unwind; the room feels bigger and slower.",colors:[["primary","#ECE4D6","Linen"],["accent","#9CAF88","Sage"],["trim","#F7F4EE","Chalk"],["ceiling","#FBF9F5","Paper"]],pattern:0},
+  {name:"Coastal Breath",tagline:"Fresh air, clear head",tone:"cool",psychology:"Soft blue-greens are linked with a calmer pulse and clearer focus; good for studies.",colors:[["primary","#D5E1E2","Sea Mist"],["secondary","#9FB7C3","Harbour"],["trim","#F6F6F2","Salt"],["ceiling","#FFFFFF","Cloud"]],pattern:2},
+  {name:"Terracotta Supper",tagline:"Warm, sociable, golden-hour",tone:"warm",psychology:"Clay tones raise perceived warmth and draw people together; great where you host.",colors:[["primary","#EFE6D8","Plaster"],["secondary","#C46A4A","Terracotta"],["accent","#7A4B33","Clay Pot"],["trim","#F6F0E6","Bone"]],pattern:6},
+  {name:"Forest Study",tagline:"Grounded and cocooning",tone:"green",psychology:"Deep green reads as nature and safety; it softens screens and makes evenings cosy.",colors:[["primary","#3F5E4B","Forest"],["secondary","#E8DFD0","Parchment"],["accent","#C49A6C","Oak"],["trim","#E8DFD0","Parchment"]],pattern:0},
+  {name:"Midnight Gallery",tagline:"Dramatic, tailored, cinematic",tone:"cool",psychology:"Inky blue feels protective and sophisticated; art and brass glow against it.",colors:[["primary","#1F2A44","Midnight"],["secondary","#E9E4DA","Ivory"],["accent","#B08D57","Brass"],["trim","#E9E4DA","Ivory"]],pattern:0},
+];
+
+// ---------------------------------------------------------------- colour maths (port of engine/reference/paint_math.py)
+const LIN = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const c = i / 255; LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+const SRGB = new Uint8ClampedArray(4096);
+for (let i = 0; i < 4096; i++) { const c = i / 4095; SRGB[i] = Math.round(255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); }
+const toS = x => x <= 0 ? 0 : x >= 1 ? 255 : SRGB[(x * 4095) | 0];
+const softClip = x => x <= 0.8 ? x : 0.8 + 0.2 * (1 - Math.exp(-(x - 0.8) / 0.2));
+function hexToLin(h) { const n = parseInt(h.slice(1), 16); return [LIN[(n >> 16) & 255], LIN[(n >> 8) & 255], LIN[n & 255]]; }
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+const lum3 = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+function lrv(h) { const [r, g, b] = hexToLin(h); return lum3(r, g, b) * 100; }
+function rgbHex(r, g, b) { return "#" + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("").toUpperCase(); }
+function normHex(h) { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || "").trim()); return m ? "#" + m[1].toUpperCase() : null; }
+function undertone(h) {
+  const [r, g, b] = hexToLin(h); const X = .4124*r+.3576*g+.1805*b, Y = .2126*r+.7152*g+.0722*b, Z = .0193*r+.1192*g+.9505*b;
+  const f = t => t > 216/24389 ? Math.cbrt(t) : (24389/27*t+16)/116;
+  const fx = f(X/.95047), fy = f(Y), fz = f(Z/1.08883); const A = 500*(fx-fy), B = 200*(fy-fz);
+  if (Math.hypot(A, B) < 3) return "neutral";
+  const hue = (Math.atan2(B, A) * 180 / Math.PI + 360) % 360;
+  return hue >= 20 && hue < 100 ? "warm" : hue >= 100 && hue < 170 ? "green" : hue >= 170 && hue < 300 ? "cool" : "warm";
+}
+
+function aa(edge, x, px) { const t = (x - edge) / px * 0.5 + 0.5; return t < 0 ? 0 : t > 1 ? 1 : t; }
+function pmod(x, m) { return x - m * Math.floor(x / m); }
+function patternWeight(p, u, v, px) {
+  switch (p) {
+    case 1: return 1 - aa(0.95, v, px);
+    case 2: { const w = 0.30, t = pmod(u, 2*w); return aa(w, t, px) * (1 - aa(2*w - px, t, px)); }
+    case 3: { const w = 0.25, t = pmod(v, 2*w); return aa(w, t, px) * (1 - aa(2*w - px, t, px)); }
+    case 4: { const t = Math.min(1, Math.max(0, (v - 0.3) / 1.9)); return 1 - t*t*(3 - 2*t); }
+    case 5: { const tri = 1 - Math.abs(2 * pmod(u / 1.6, 1) - 1); return 1 - aa(0.9 + 0.7 * tri, v, px); }
+    case 6: { const cx = state.archX, r = 0.7, spring = 2.1 - r;
+              const rect = (1 - aa(r, Math.abs(u - cx), px)) * (1 - aa(spring, v, px));
+              const dome = (1 - aa(r, Math.hypot(u - cx, v - spring), px)) * aa(spring, v, px);
+              return Math.min(1, rect + dome); }
+    case 7: { const x0 = state.archX - 0.6, x1 = state.archX + 0.6;
+              return aa(x0, u, px) * (1 - aa(x1, u, px)) * aa(0, v, px) * (1 - aa(1.8, v, px)); }
+    default: return 0;
+  }
+}
+
+// ---------------------------------------------------------------- state
+const view = document.getElementById("view");
+const ctx = view.getContext("2d", { willReadFrequently: true });
+let W = 960, H = 640, base = null;        // base: Uint8ClampedArray RGBA of the unpainted photo
+let sampleMask = null;                     // exact wall mask for the built-in room
+const state = {
+  walls: [],               // {mask: Float32Array, look, yRef, tint, floorY, areaM2}
+  sel: -1,
+  look: { a: "#9CAF88", nameA: "Sage", b: "#C46A4A", nameB: "Terracotta", pattern: 0, finish: "matte" },
+  editB: false,
+  compare: false, split: 0.5,
+  isSample: true,
+  metresAcross: 4.0,       // assumed width of the photographed wall area
+  archX: 2.2,
+};
+const undoStack = [];
+const OLD_ALBEDO = 0.65, CONTRAST_K = 0.85;
+
+// ---------------------------------------------------------------- built-in room (same scene as engine/reference/demo_scene.py)
+function buildSample() {
+  W = 960; H = 640; const FLOOR = 560;
+  const img = new Float32Array(W * H * 3), mask = new Float32Array(W * H).fill(1);
+  let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+  const noise = new Float32Array(W * H); for (let i = 0; i < noise.length; i++) noise[i] = rnd();
+  boxBlur(noise, W, H, 2); boxBlur(noise, W, H, 2);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    const win = 0.55 + 0.55 * Math.exp(-(((x - 40) / 420) ** 2));
+    const lamp = 0.35 * Math.exp(-(((x - 640) / 140) ** 2 + ((y - 200) / 120) ** 2));
+    const shadow = 1 - 0.45 * Math.exp(-(((x - 470) / 260) ** 4 + ((y - 470) / 70) ** 2));
+    const L = (win + lamp) * shadow + noise[i] * 0.09;
+    img[i*3] = 0.86 * L; img[i*3+1] = 0.84 * L * 0.97; img[i*3+2] = 0.80 * L * 0.90;
+  }
+  const fill = (x0, y0, x1, y1, c, m = 0) => { for (let y = Math.max(0,y0); y < Math.min(H,y1); y++) for (let x = Math.max(0,x0); x < Math.min(W,x1); x++) { const i = y*W+x; if (c) { img[i*3]=c[0]; img[i*3+1]=c[1]; img[i*3+2]=c[2]; } if (m !== null) mask[i] = m; } };
+  for (let y = FLOOR; y < H; y++) for (let x = 0; x < W; x++) { const k = 0.8 + 0.2 * Math.sin(x / 9), i = y*W+x; img[i*3]=0.45*k; img[i*3+1]=0.30*k; img[i*3+2]=0.20*k; mask[i]=0; }
+  fill(0, FLOOR - 14, W, FLOOR, [0.93, 0.93, 0.93]);
+  fill(62, 82, 308, 388, null, 0); fill(62, 82, 308, 388, [0.95, 0.95, 0.95]); fill(70, 90, 300, 380, [0.62, 0.78, 0.95]); fill(182, 90, 188, 380, [0.95, 0.95, 0.95]);
+  fill(784, 194, 926, FLOOR, null, 0); fill(784, 194, 926, 200, [0.95,0.95,0.95]); fill(784, 194, 790, FLOOR, [0.95,0.95,0.95]); fill(920, 194, 926, FLOOR, [0.95,0.95,0.95]);
+  fill(790, 200, 920, FLOOR, [0.52, 0.36, 0.24]); fill(805, 380, 820, 390, [0.75, 0.75, 0.75]);
+  fill(745, 300, 770, 340, [0.97, 0.97, 0.97]);
+  for (let y = 430; y < H; y++) for (let x = 240; x < 700; x++) { const i = y*W+x; img[i*3]=0.22; img[i*3+1]=0.24; img[i*3+2]=0.27; mask[i]=0; }
+  for (let y = 412; y < 456; y++) for (let x = 262; x < 352; x++) { const i = y*W+x; img[i*3]=0.74; img[i*3+1]=0.68; img[i*3+2]=0.58; mask[i]=0; }
+  base = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < W * H; i++) { base[i*4] = toByte(img[i*3]); base[i*4+1] = toByte(img[i*3+1]); base[i*4+2] = toByte(img[i*3+2]); base[i*4+3] = 255; }
+  boxBlur(mask, W, H, 1);
+  sampleMask = mask;
+  state.isSample = true; state.metresAcross = 4.0; state.archX = 2.2;
+  view.width = W; view.height = H;
+}
+const toByte = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+function boxBlur(a, w, h, r) {
+  const tmp = new Float32Array(a.length), n = 2 * r + 1;
+  for (let y = 0; y < h; y++) { let s = 0; for (let x = -r; x <= r; x++) s += a[y*w + Math.min(w-1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) { tmp[y*w+x] = s / n; s += a[y*w + Math.min(w-1, x + r + 1)] - a[y*w + Math.max(0, x - r)]; } }
+  for (let x = 0; x < w; x++) { let s = 0; for (let y = -r; y <= r; y++) s += tmp[Math.min(h-1, Math.max(0, y))*w + x];
+    for (let y = 0; y < h; y++) { a[y*w+x] = s / n; s += tmp[Math.min(h-1, y + r + 1)*w + x] - tmp[Math.max(0, y - r)*w + x]; } }
+}
+
+// ---------------------------------------------------------------- wall detection for photos: edge-aware region growing
+function detectWall(sx, sy) {
+  if (state.isSample) {
+    if (sampleMask[sy * W + sx] < 0.5) return null;
+    return Float32Array.from(sampleMask);
+  }
+  const f = Math.max(1, Math.round(Math.max(W, H) / 480)), w = Math.ceil(W / f), h = Math.ceil(H / f), n = w * h;
+  const L = new Float32Array(n), cr = new Float32Array(n), cg = new Float32Array(n);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const j = (Math.min(H-1, y*f) * W + Math.min(W-1, x*f)) * 4;
+    const r = LIN[base[j]], g = LIN[base[j+1]], b = LIN[base[j+2]], s = r + g + b + 1e-4, i = y*w+x;
+    L[i] = Math.log(lum3(r, g, b) + 0.004); cr[i] = r / s; cg[i] = g / s;
+  }
+  const grad = new Float32Array(n);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y*w+x;
+    const gx = L[i-w+1] + 2*L[i+1] + L[i+w+1] - L[i-w-1] - 2*L[i-1] - L[i+w-1];
+    const gy = L[i+w-1] + 2*L[i+w] + L[i+w+1] - L[i-w-1] - 2*L[i-w] - L[i-w+1];
+    const cgx = (cr[i+1] - cr[i-1]) * 40, cgy = (cr[i+w] - cr[i-w]) * 40;
+    grad[i] = Math.hypot(gx, gy) / 4 + Math.hypot(cgx, cgy);
+  }
+  const k = +document.getElementById("sens").value;
+  const tc = 0.018 * k, tl = 0.09 * k, tg = 0.22 * k;
+  const x0 = Math.min(w-1, (sx / f) | 0), y0 = Math.min(h-1, (sy / f) | 0);
+  let mr = 0, mg = 0, cnt = 0;
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x0+dx, yy = y0+dy; if (xx>=0&&yy>=0&&xx<w&&yy<h) { mr += cr[yy*w+xx]; mg += cg[yy*w+xx]; cnt++; } }
+  mr /= cnt; mg /= cnt;
+  const inR = new Uint8Array(n), q = new Int32Array(n); let qh = 0, qt = 0, area = 0;
+  q[qt++] = y0*w+x0; inR[y0*w+x0] = 1;
+  while (qh < qt) {
+    const p = q[qh++]; area++;
+    const px = p % w, py = (p / w) | 0;
+    const nb = [px > 0 ? p-1 : -1, px < w-1 ? p+1 : -1, py > 0 ? p-w : -1, py < h-1 ? p+w : -1];
+    for (const m of nb) {
+      if (m < 0 || inR[m]) continue;
+      if (Math.abs(cr[m]-mr) < tc && Math.abs(cg[m]-mg) < tc && Math.abs(L[m]-L[p]) < tl && grad[m] < tg) {
+        inR[m] = 1; q[qt++] = m;
+        if (area < 4000) { mr += (cr[m]-mr) / (area+1); mg += (cg[m]-mg) / (area+1); }
+      }
+    }
+  }
+  if (area < n * 0.004) return null;
+  // close small holes (switch plates, nail holes, texture) then soften the edge
+  let m = new Float32Array(n); for (let i = 0; i < n; i++) m[i] = inR[i];
+  boxBlur(m, w, h, 2); for (let i = 0; i < n; i++) m[i] = m[i] > 0.15 ? 1 : 0;
+  boxBlur(m, w, h, 2); for (let i = 0; i < n; i++) m[i] = m[i] > 0.85 ? 1 : 0;
+  const full = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) { const fy = Math.min(h - 1.001, y / f), yi = fy | 0, ty = fy - yi;
+    for (let x = 0; x < W; x++) { const fx = Math.min(w - 1.001, x / f), xi = fx | 0, tx = fx - xi, i = yi*w+xi;
+      full[y*W+x] = (m[i]*(1-tx) + m[i+1]*tx) * (1-ty) + (m[i+w]*(1-tx) + m[i+w+1]*tx) * ty; } }
+  boxBlur(full, W, H, 1);
+  return full;
+}
+
+function wallStats(mask) {
+  const hist = new Uint32Array(1024); let cnt = 0, sr = 0, sg = 0, sb = 0, bottom = 0, minX = W, maxX = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y*W+x; if (mask[i] < 0.6) continue;
+    const r = LIN[base[i*4]], g = LIN[base[i*4+1]], b = LIN[base[i*4+2]];
+    hist[Math.min(1023, (lum3(r, g, b) * 1023) | 0)]++; sr += r; sg += g; sb += b; cnt++;
+    if (y > bottom) bottom = y; if (x < minX) minX = x; if (x > maxX) maxX = x;
+  }
+  let acc = 0, med = 0.18; for (let i = 0; i < 1024; i++) { acc += hist[i]; if (acc >= cnt / 2) { med = Math.max(0.01, i / 1023); break; } }
+  const ly = lum3(sr, sg, sb) || 1;
+  const tint = [sr, sg, sb].map(v => 0.2 + 0.8 * v / ly);   // light colour, assuming today's wall is near-neutral
+  const mpp = state.metresAcross / W;
+  return { yRef: med, tint, floorY: bottom, minX, areaM2: cnt * mpp * mpp };
+}
+
+// ---------------------------------------------------------------- render (port of WallPaint.metal)
+let pending = false;
+function render() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } }
+function prepLook(look, w) {
+  const A = hexToLin(look.a), B = hexToLin(look.b || look.a);
+  const pre = c => { const y = lum3(c[0], c[1], c[2]); const lvl = w.yRef * Math.pow(Math.max(y, 0) / OLD_ALBEDO, CONTRAST_K);
+    return y > 1e-5 ? [c[0]/y*lvl*w.tint[0], c[1]/y*lvl*w.tint[1], c[2]/y*lvl*w.tint[2]] : [0, 0, 0]; };
+  const [sp, sh] = FINISHES[look.finish] || FINISHES.matte;
+  return { A, B, pA: pre(A), pB: pre(B), pre, spec: sp + sh };
+}
+function draw() {
+  const out = ctx.createImageData(W, H), o = out.data;
+  o.set(base);
+  const splitX = state.compare ? state.split * W : -1, mpp = state.metresAcross / W;
+  const preps = state.walls.map(w => prepLook(w.look, w));
+  for (let k = 0; k < state.walls.length; k++) {
+    const w = state.walls[k], P = preps[k], m = w.mask, pat = w.look.pattern, op = w.look.opacity ?? 1;
+    for (let y = 0; y < H; y++) {
+      const v = (w.floorY - y) * mpp;
+      for (let x = 0; x < W; x++) {
+        const i = y*W+x; const a = m[i] * op;
+        if (a < 1/512 || x < splitX) continue;
+        const j = i*4, r = base[j], g = base[j+1], b = base[j+2];
+        const s = lum3(LIN[r], LIN[g], LIN[b]) / w.yRef;
+        let c;
+        if (pat === 0) c = P.pA; else {
+          const wt = patternWeight(pat, (x - w.minX) * mpp, v, mpp);
+          c = wt <= 0 ? P.pA : wt >= 1 ? P.pB : P.pre([P.A[0]+(P.B[0]-P.A[0])*wt, P.A[1]+(P.B[1]-P.A[1])*wt, P.A[2]+(P.B[2]-P.A[2])*wt]);
+        }
+        const sp = P.spec * Math.max(s - 1.3, 0) * w.yRef;
+        const R = toS(softClip(c[0]*s + sp)), G = toS(softClip(c[1]*s + sp)), Bb = toS(softClip(c[2]*s + sp));
+        o[j] = r + (R - r) * a; o[j+1] = g + (G - g) * a; o[j+2] = b + (Bb - b) * a;
+      }
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  updateSplit();
+}
+
+// ---------------------------------------------------------------- UI wiring
+const $ = id => document.getElementById(id);
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); }
+function coach(msg) { $("coach").textContent = msg; $("coach").hidden = !msg; }
+function snapshot() { undoStack.push(JSON.stringify({ looks: state.walls.map(w => w.look), n: state.walls.length, sel: state.sel, look: state.look })); if (undoStack.length > 40) undoStack.shift(); $("undoBtn").disabled = false; }
+function undo() {
+  const s = undoStack.pop(); if (!s) return; const d = JSON.parse(s);
+  state.walls.length = Math.min(state.walls.length, d.n); d.looks.forEach((l, i) => { if (state.walls[i]) state.walls[i].look = l; });
+  state.sel = Math.min(d.sel, state.walls.length - 1); state.look = d.look;
+  $("undoBtn").disabled = !undoStack.length; syncUI(); render();
+}
+function applyLook(patch, record = true) {
+  if (record) snapshot();
+  state.look = { ...state.look, ...patch };
+  const w = state.walls[state.sel]; if (w) w.look = { ...state.look };
+  syncUI(); render();
+}
+
+function stagePoint(e) { const r = view.getBoundingClientRect(); return [Math.round((e.clientX - r.left) / r.width * W), Math.round((e.clientY - r.top) / r.height * H)]; }
+let dragging = false;
+$("stage").addEventListener("pointerdown", e => {
+  const [x, y] = stagePoint(e);
+  if (state.compare) { dragging = true; $("stage").setPointerCapture(e.pointerId); state.split = Math.min(1, Math.max(0, x / W)); render(); return; }
+  tapWall(x, y);
+});
+$("stage").addEventListener("pointermove", e => { if (!dragging) return; const [x] = stagePoint(e); state.split = Math.min(1, Math.max(0, x / W)); render(); });
+$("stage").addEventListener("pointerup", () => dragging = false);
+$("stage").addEventListener("pointercancel", () => dragging = false);
+
+function tapWall(x, y) {
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  const hit = state.walls.findIndex(w => w.mask[y*W+x] > 0.5);
+  if (hit >= 0) { snapshot(); state.sel = hit; state.walls[hit].look = { ...state.look }; syncUI(); render(); return; }
+  $("busy").hidden = false;
+  setTimeout(() => {
+    const mask = detectWall(x, y); $("busy").hidden = true;
+    if (!mask) { coach("That doesn’t look like a wall. Try a plain area, or raise the edge sensitivity."); return; }
+    let cov = 0; for (let i = 0; i < mask.length; i += 7) cov += mask[i] > 0.5; cov = cov * 7 / mask.length;
+    snapshot();
+    const st = wallStats(mask);
+    state.walls.push({ mask, look: { ...state.look }, ...st });
+    if (state.walls.length > 4) state.walls.shift();
+    state.sel = state.walls.length - 1;
+    coach(cov > 0.8 ? "That covered most of the photo. Lower the edge sensitivity and tap again." : "Swipe through colours, or tap another wall");
+    syncUI(); render();
+  }, 30);
+}
+
+function syncUI() {
+  const L = state.look, pat = PATTERNS[L.pattern];
+  $("curDots").innerHTML = "";
+  [L.a].concat(L.pattern ? [L.b] : []).forEach(h => { const d = document.createElement("span"); d.className = "dot"; d.style.background = h; $("curDots").append(d); });
+  $("curName").textContent = L.pattern ? `${L.nameA || L.a} + ${L.nameB || L.b}` : (L.nameA || L.a);
+  const total = state.walls.reduce((s, w) => s + w.areaM2, 0);
+  $("curSub").textContent = `${pat.label} · ${FINISH_LABEL[L.finish] || "Matte"}` + (total ? ` · ≈ ${(total * 2 / 10 * 1.1).toFixed(1)} L for 2 coats` : "");
+  $("editRow").hidden = !L.pattern;
+  if (!L.pattern) state.editB = false;
+  $("editA").setAttribute("aria-pressed", String(!state.editB)); $("editB").setAttribute("aria-pressed", String(state.editB));
+  const active = state.editB ? L.b : L.a;
+  document.querySelectorAll(".swatch").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.hex === active)));
+  document.querySelectorAll("#finishes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === L.finish)));
+  document.querySelectorAll(".pat").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.p === L.pattern)));
+  $("patHint").textContent = pat.hint + ". Designs are measured in metres on the wall.";
+  drawPatternThumbs();
+  const wl = $("walls"); wl.innerHTML = "";
+  state.walls.forEach((w, i) => {
+    const c = document.createElement("span"); c.className = "wall-chip"; c.setAttribute("role", "group");
+    const b = document.createElement("button"); b.type = "button"; b.style.cssText = "all:unset;display:inline-flex;align-items:center;gap:6px;cursor:pointer";
+    b.setAttribute("aria-label", `Select wall ${i + 1}`); c.setAttribute("aria-pressed", String(i === state.sel));
+    b.innerHTML = `<span class="sw" style="background:${w.look.a}"></span>Wall ${i + 1}`;
+    b.onclick = () => { state.sel = i; state.look = { ...w.look }; syncUI(); };
+    const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.setAttribute("aria-label", `Remove wall ${i + 1}`); x.textContent = "×";
+    x.onclick = () => { snapshot(); state.walls.splice(i, 1); state.sel = state.walls.length - 1; syncUI(); render(); };
+    c.append(b, x); wl.append(c);
+  });
+}
+
+function buildControls() {
+  const sw = $("swatches");
+  COLORS.forEach(([hex, name]) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "swatch"; b.dataset.hex = hex; b.setAttribute("aria-label", name);
+    b.innerHTML = `<span style="background:${hex}"></span><span>${name}</span>`;
+    b.onclick = () => pickColor(hex, name); sw.append(b);
+  });
+  $("customColor").addEventListener("change", e => pickColor(e.target.value.toUpperCase(), e.target.value.toUpperCase()));
+  const fz = $("finishes");
+  Object.keys(FINISH_LABEL).forEach(f => { const b = document.createElement("button"); b.type = "button"; b.dataset.f = f; b.textContent = FINISH_LABEL[f]; b.onclick = () => applyLook({ finish: f }); fz.append(b); });
+  const pz = $("patterns");
+  PATTERNS.forEach(p => { const b = document.createElement("button"); b.type = "button"; b.className = "pat"; b.dataset.p = p.id;
+    b.innerHTML = `<canvas width="120" height="100" aria-hidden="true"></canvas><span>${p.label}</span>`;
+    b.onclick = () => { applyLook({ pattern: p.id }); if (p.id) state.editB = true; syncUI(); }; pz.append(b); });
+  const sz = $("styles");
+  STYLES.forEach(s => { const b = document.createElement("button"); b.type = "button"; b.className = "style";
+    b.innerHTML = `<span class="strip">${s.sw.map(c => `<i style="background:${c}"></i>`).join("")}</span><b>${s.name}</b><small>${s.mood}</small>`;
+    b.onclick = () => { ensureWall(); applyLook({ b: s.look.a, nameB: s.look.nameA, ...s.look }); }; sz.append(b); });
+  $("editA").onclick = () => { state.editB = false; syncUI(); };
+  $("editB").onclick = () => { state.editB = true; syncUI(); };
+}
+function pickColor(hex, name) { applyLook(state.editB && state.look.pattern ? { b: hex, nameB: name } : { a: hex, nameA: name }); }
+function ensureWall() {
+  if (state.walls.length) return;
+  if (state.isSample) { const st = wallStats(sampleMask); state.walls.push({ mask: Float32Array.from(sampleMask), look: { ...state.look }, ...st }); state.sel = 0; }
+  else coach("Tap the wall you want first. Your chosen look is ready to apply.");
+}
+function drawPatternThumbs() {
+  document.querySelectorAll(".pat canvas").forEach(c => {
+    const p = +c.parentElement.dataset.p, g = c.getContext("2d"), img = g.createImageData(120, 100), A = hexRgb(state.look.a), B = hexRgb(state.look.b || "#C46A4A");
+    const mpp = 3.0 / 120, saveX = state.archX; state.archX = 1.5;
+    for (let y = 0; y < 100; y++) for (let x = 0; x < 120; x++) {
+      const wt = p ? patternWeight(p, x * mpp, (100 - y) * mpp, mpp) : 0, j = (y*120+x)*4;
+      img.data[j] = A[0] + (B[0]-A[0])*wt; img.data[j+1] = A[1] + (B[1]-A[1])*wt; img.data[j+2] = A[2] + (B[2]-A[2])*wt; img.data[j+3] = 255;
+    }
+    state.archX = saveX; g.putImageData(img, 0, 0);
+  });
+}
+
+function setTab(name) {
+  ["colours", "designs", "styles", "ai"].forEach(t => { $("t-" + t).setAttribute("aria-selected", String(t === name)); $("p-" + t).hidden = t !== name; });
+}
+["colours", "designs", "styles", "ai"].forEach(t => $("t-" + t).addEventListener("click", () => setTab(t)));
+
+function updateSplit() {
+  const on = state.compare; $("split").hidden = !on; $("tagBefore").hidden = !on; $("tagAfter").hidden = !on;
+  if (on) { const r = view.getBoundingClientRect(), px = state.split * r.width;
+    $("split").style.left = px + "px"; $("tagBefore").style.left = Math.max(10, px - 80) + "px"; $("tagAfter").style.left = (px + 12) + "px"; }
+}
+$("compareBtn").onclick = () => { state.compare = !state.compare; $("compareBtn").setAttribute("aria-pressed", String(state.compare));
+  coach(state.compare ? "Drag across the photo to compare" : ""); render(); };
+window.addEventListener("resize", updateSplit);
+$("undoBtn").onclick = undo;
+$("sens").addEventListener("change", () => toast("New sensitivity applies to the next wall you tap"));
+
+// Photos
+$("photo").addEventListener("change", e => {
+  const file = e.target.files && e.target.files[0]; if (!file) return;
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    const s = Math.min(1, 1100 / Math.max(im.width, im.height));
+    W = Math.round(im.width * s); H = Math.round(im.height * s); view.width = W; view.height = H;
+    ctx.drawImage(im, 0, 0, W, H); base = ctx.getImageData(0, 0, W, H).data.slice();
+    URL.revokeObjectURL(url);
+    state.isSample = false; state.walls = []; state.sel = -1; state.metresAcross = 4.0; state.archX = 2.0;
+    undoStack.length = 0; $("undoBtn").disabled = true; aiResult = null; $("aiOut").innerHTML = "";
+    coach("Tap a wall in your photo to paint it"); syncUI(); render();
+  };
+  im.onerror = () => toast("That file couldn’t be opened. Try a JPG or PNG.");
+  im.src = url; e.target.value = "";
+});
+$("sampleBtn").onclick = () => { buildSample(); state.walls = []; state.sel = -1; ensureWall(); undoStack.length = 0; $("undoBtn").disabled = true; coach("Tap any wall to paint it"); syncUI(); render(); };
+
+// ---------------------------------------------------------------- measurements (port of engine/ai/room_analysis.measure_room)
+function measure() {
+  const mask = state.walls[state.sel]?.mask;
+  let pr = 0, pg = 0, pb = 0, cnt = 0, sumL = 0, all = 0, left = 0, right = 0, ln = 0, rn = 0;
+  const bins = new Map();
+  for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+    const i = y*W+x, j = i*4, r = LIN[base[j]], g = LIN[base[j+1]], b = LIN[base[j+2]], l = lum3(r, g, b);
+    sumL += l; all++;
+    const onWall = mask ? mask[i] > 0.5 : true;
+    if (onWall) { if (x < W/3) { left += l; ln++; } else if (x > 2*W/3) { right += l; rn++; } }
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (onWall && l > 0.02 && (mx - mn) / (mx + 1e-6) < 0.45) { pr += r**6; pg += g**6; pb += b**6; cnt++; }
+    if (!mask || mask[i] < 0.5) { const key = (base[j] >> 5) << 6 | (base[j+1] >> 5) << 3 | (base[j+2] >> 5);
+      const e = bins.get(key) || [0, 0, 0, 0]; e[0]++; e[1] += base[j]; e[2] += base[j+1]; e[3] += base[j+2]; bins.set(key, e); }
+  }
+  const il = cnt ? [pr/cnt, pg/cnt, pb/cnt].map(v => Math.pow(v, 1/6)) : [1, 1, 1];
+  const X = .4124*il[0]+.3576*il[1]+.1805*il[2], Y = .2126*il[0]+.7152*il[1]+.0722*il[2], Z = .0193*il[0]+.1192*il[1]+.9505*il[2];
+  const sx = X/(X+Y+Z), sy = Y/(X+Y+Z), nn = (sx - 0.3320) / (0.1858 - sy);
+  const cct = Math.round(Math.min(10000, Math.max(1800, 449*nn**3 + 3525*nn**2 + 6823.3*nn + 5520.33)) / 50) * 50;
+  const meanL = sumL / all, ratio = (left/(ln||1) + 1e-6) / (right/(rn||1) + 1e-6);
+  const dominant = [...bins.values()].sort((a, b) => b[0] - a[0]).slice(0, 8)
+    .map(e => ({ hex: rgbHex(e[1]/e[0], e[2]/e[0], e[3]/e[0]), share: +(e[0] / all).toFixed(3) }))
+    .filter((d, i, arr) => arr.findIndex(o => o.hex === d.hex) === i).slice(0, 5)
+    .map(d => ({ ...d, undertone: undertone(d.hex) }));
+  return {
+    color_temperature_k: cct,
+    light_label: cct < 3200 ? "warm incandescent" : cct < 4200 ? "warm white" : cct < 5600 ? "neutral daylight" : "cool daylight",
+    brightness: meanL < 0.08 ? "dim" : meanL > 0.3 ? "bright" : "medium",
+    light_direction: ratio > 1.25 ? "left" : ratio < 0.8 ? "right" : "even",
+    dominant_colors: dominant,
+  };
+}
+
+function curatedFor(m) {
+  const score = p => { let s = 0; const pl = lrv(p.colors[0][1]);
+    if (m.color_temperature_k < 3500 && p.tone === "cool") s -= 2;
+    if (m.color_temperature_k > 5600 && p.tone === "warm") s += 0.5;
+    if (m.brightness === "dim" && pl < 40) s -= 1.5;
+    if (m.brightness === "bright" && pl < 20) s += 0.5;
+    if (m.dominant_colors.slice(0, 3).some(d => d.undertone === p.tone)) s += 0.7; return s; };
+  return [...CURATED].sort((a, b) => score(b) - score(a)).slice(0, 3).map(p => ({
+    name: p.name, tagline: p.tagline, psychology: p.psychology,
+    why_it_works: `Chosen for ${m.light_label} light (about ${m.color_temperature_k.toLocaleString()} K) in a ${m.brightness} room.`,
+    colors: p.colors.map(([role, hex, label]) => ({ role, hex, label })), pattern: PATTERNS[p.pattern].key }));
+}
+
+// ---------------------------------------------------------------- AI consultant (Claude, via the sample capability)
+let sample = null, canImages = false, aiResult = null, aiCtl = null;
+async function aiAnalyse() {
+  const out = $("aiOut"), m = measure();
+  if (!sample) { renderReport({ room: m, palettes: curatedFor(m), source: "curated" }); return; }
+  aiCtl = new AbortController();
+  out.innerHTML = `<div class="thinking"><span class="spin" aria-hidden="true"></span><span id="aiStep">Reading the light…</span></div><button class="btn" id="aiStop" type="button">Stop</button>`;
+  $("aiStop").onclick = () => aiCtl.abort();
+  const steps = ["Reading the light…", "Finding undertones…", "Matching your furniture…", "Curating palettes…"]; let si = 0;
+  const tick = setInterval(() => { const el = $("aiStep"); if (el) el.textContent = steps[++si % steps.length]; }, 2200);
+  const blob = canImages ? await new Promise(r => { const c = document.createElement("canvas"); c.width = W; c.height = H;
+    c.getContext("2d").putImageData(new ImageData(base.slice(), W, H), 0, 0); c.toBlob(r, "image/jpeg", 0.9); }) : null;
+  const prompt = `You are a senior interior colour consultant and environmental psychologist. ${blob ? "The image is a photo of the user's room." : "No photo is available; rely on the measurements."}
+MEASUREMENTS (calibrated computer vision; trust these over the photo's white balance): ${JSON.stringify(m)}
+Recommend exactly 3 wall paint palettes that will look right in THIS room's light and with the furniture colours that stay. Make them three genuinely different directions (e.g. calm/airy, warm/sociable, bold/dramatic). Under warm light (<3500 K) avoid cool blue-greys; in dim rooms prefer primaries with LRV >= 50. Include a trim colour with clear contrast. Be specific and concrete, written for a homeowner.
+Reply with only JSON of this shape:
+{"summary":"2 sentences about this room","style":{"detected":"e.g. Japandi","confidence":0.7},"constraints":["short fact that limits colour choice"],"palettes":[{"name":"","tagline":"","psychology":"how it will feel and why","why_it_works":"reference the light and furniture","colors":[{"role":"primary|secondary|accent|trim|ceiling","hex":"#RRGGBB","label":""}],"pattern":"solid|two_tone|stripes_vertical|stripes_horizontal|ombre|mountain|arch|color_block"}]}`;
+  try {
+    const r = await sample.json(prompt, { signal: aiCtl.signal, images: blob ? [blob] : undefined });
+    const pals = (Array.isArray(r?.palettes) ? r.palettes : []).map(p => ({ ...p,
+      colors: (Array.isArray(p.colors) ? p.colors : []).map(c => ({ ...c, hex: normHex(c.hex) })).filter(c => c.hex) })).filter(p => p.colors.length >= 2);
+    const filled = pals.concat(curatedFor(m)).slice(0, 3);
+    renderReport({ room: m, summary: String(r?.summary || ""), style: r?.style, constraints: Array.isArray(r?.constraints) ? r.constraints.slice(0, 4) : [], palettes: filled, source: pals.length ? "ai" : "curated" });
+  } catch (e) {
+    if (e?.code === "not_granted" || e?.code === "sampling_disabled") { sample = null; $("aiSub").textContent = "Curated palettes chosen from your measured light"; }
+    if (e?.code === "images_unavailable") canImages = false;
+    renderReport({ room: m, palettes: curatedFor(m), source: "curated",
+      note: e?.code === "cancelled" ? "Stopped. Showing curated palettes for your light instead." : e?.code === "rate_limited" ? "The AI is busy right now. Here are curated palettes for your light; try again in a minute." : "The AI couldn’t answer this time. Here are curated palettes for your light." });
+  } finally { clearInterval(tick); }
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function renderReport(r) {
+  aiResult = r; const out = $("aiOut"); out.innerHTML = "";
+  if (r.note) out.append(el("p", "hint", r.note));
+  if (r.summary) out.append(el("p", "summary", r.summary));
+  const facts = el("div", "facts");
+  [[`${r.room.color_temperature_k.toLocaleString()} K`, r.room.light_label], [r.room.brightness[0].toUpperCase() + r.room.brightness.slice(1), `Light ${r.room.light_direction === "even" ? "even" : "from " + r.room.light_direction}`],
+   [r.style?.detected || "—", r.style?.confidence ? `${Math.round(r.style.confidence * 100)}% style match` : "Style"]].forEach(([b, s]) => { const f = el("div", "fact"); f.append(el("b", null, b), el("span", null, s)); facts.append(f); });
+  out.append(facts);
+  if (r.constraints?.length) { const ul = el("ul", "constraints"); r.constraints.forEach(c => ul.append(el("li", null, String(c)))); out.append(ul); }
+  r.palettes.forEach((p, i) => {
+    const card = el("article", "pal"), strip = el("div", "strip");
+    const cols = p.colors.slice(0, 4); while (cols.length < 4) cols.push(cols[cols.length - 1]);
+    cols.forEach(c => { const s = el("i"); s.style.background = c.hex; strip.append(s); });
+    const body = el("div", "body");
+    body.append(el("span", "num", `DIRECTION ${i + 1}`), el("h3", null, p.name || "Palette"), el("span", "tl", p.tagline || ""));
+    const f1 = el("p"); f1.append(el("b", null, "How it feels: "), document.createTextNode(p.psychology || "")); body.append(f1);
+    const f2 = el("p"); f2.append(el("b", null, "Why it works here: "), document.createTextNode(p.why_it_works || "")); body.append(f2);
+    const prim = p.colors.find(c => c.role === "primary") || p.colors[0];
+    if (r.room.color_temperature_k < 3500 && undertone(prim.hex) === "cool") body.append(el("span", "warn", "Your light is warm; this cool colour may look greyer at night."));
+    const btn = el("button", "try", "Try on my wall"); btn.type = "button";
+    btn.onclick = () => {
+      const second = p.colors.find(c => c !== prim && c.role !== "trim" && c.role !== "ceiling") || p.colors[1] || prim;
+      const pi = PATTERNS.find(x => x.key === p.pattern)?.id ?? 0;
+      ensureWall();
+      applyLook({ a: prim.hex, nameA: prim.label, b: second.hex, nameB: second.label, pattern: pi });
+      toast(`${p.name} applied`);
+    };
+    body.append(btn); card.append(strip, body); out.append(card);
+  });
+  out.append(el("span", "source", r.source === "ai" ? "Written by Claude from your photo and the measured light." : "Curated palettes ranked against your measured light."));
+}
+$("aiBtn").onclick = aiAnalyse;
+
+// ---------------------------------------------------------------- save
+let downloads = null;
+$("saveBtn").onclick = () => {
+  view.toBlob(async blob => {
+    try { await downloads.save({ filename: "my-painted-wall.png", data: blob }); toast("Saved"); }
+    catch (e) { if (e?.code !== "declined") toast("Saving isn’t available here"); }
+  }, "image/png");
+};
+
+// ---------------------------------------------------------------- boot
+buildControls();
+buildSample();
+ensureWall();
+coach("Tap any wall to paint it · or use your own room photo");
+syncUI(); render();
+(async () => {
+  if (!window.claude?.use) return;
+  claude.use("downloads").then(d => { downloads = d; $("saveBtn").hidden = !d; });
+  sample = await claude.use("sample");
+  if (sample) { const lim = await sample.limits().catch(() => null); canImages = !!lim?.images; }
+  else $("aiSub").textContent = "Curated palettes chosen from your measured light";
+})();
+</script>

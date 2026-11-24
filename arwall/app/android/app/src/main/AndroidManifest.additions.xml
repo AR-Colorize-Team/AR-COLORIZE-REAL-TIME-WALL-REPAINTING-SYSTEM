@@ -1,0 +1,8 @@
+<!-- Merge into android/app/src/main/AndroidManifest.xml -->
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature android:name="android.hardware.camera.ar" android:required="false" />
+<uses-feature android:glEsVersion="0x00030000" android:required="true" />
+<application>
+    <!-- "optional": phones without ARCore can still install and use photo mode -->
+    <meta-data android:name="com.google.ar.core" android:value="optional" />
+</application>

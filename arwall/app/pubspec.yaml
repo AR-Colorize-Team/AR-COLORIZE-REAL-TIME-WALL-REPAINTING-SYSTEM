@@ -1,0 +1,26 @@
+name: arwall
+description: AR Wall Painting — paint your walls live through the camera.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1          # Fraunces (display) + Inter (UI)
+  permission_handler: ^11.3.1   # camera permission with a friendly pre-prompt
+  http: ^1.2.2                  # backend API (Parts 1–2)
+  share_plus: ^10.0.2           # share before/after images
+  path_provider: ^2.1.4
+  url_launcher: ^6.3.0          # Stripe Checkout / Portal in the browser
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

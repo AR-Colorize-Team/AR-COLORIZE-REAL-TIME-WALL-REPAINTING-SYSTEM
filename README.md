@@ -1,4 +1,4 @@
-<p align="center"><img src="web/icons/icon-192.png" width="120" alt="ARColorize logo"></p>
+<p align="center"><img src="arwall/live/icons/icon-192.png" width="120" alt="ARColorize logo"></p>
 
 <h1 align="center">ARColorize: Real-Time AR Wall Repainting System</h1>
 
@@ -9,13 +9,27 @@
 
 <p align="center">
   <a href="https://arcolorize.vercel.app"><b>▶ Live demo</b></a> ·
-  <a href="#-whats-new-in-v20-november-2026">What's new</a> ·
+  <a href="#-whats-new-in-v30-november-2026">What's new</a> ·
   <a href="#-team">Team</a> ·
   <a href="#-results">Results</a> ·
   <a href="#-project-history">History</a>
 </p>
 
 ---
+
+## 🚀 What's new in v3.0 (November 2026)
+
+**ARWall** is the full-stack version of ARColorize. Everything new lives in [`arwall/`](arwall/); the v2.0 web app is kept unchanged in [`web/`](web/).
+
+| | |
+|---|---|
+| 🌐 | **New live web app** ([`arwall/live/`](arwall/live/)), now what [arcolorize.vercel.app](https://arcolorize.vercel.app) serves, with a new app icon. |
+| 📱 | **Native mobile app** ([`arwall/app/`](arwall/app/)): Flutter UI with ARKit + Metal on iOS and ARCore + GLES3 on Android, LiDAR/Depth occlusion, wall designs, finishes and room styles. |
+| 🧠 | **AI room analysis engine** ([`arwall/engine/`](arwall/engine/)): measured light and undertones, a reference paint model the shaders are ported from, with tests. |
+| ⚙️ | **Backend API** ([`arwall/backend/`](arwall/backend/)): FastAPI with auth, RBAC, palettes, projects, paint catalogue (ΔE2000 matching), billing and AI jobs. |
+| 🗄️ | **Database** ([`arwall/db/`](arwall/db/)): PostgreSQL schema, plus `docker-compose.yml` for local development. |
+
+Details: [`arwall/README.md`](arwall/README.md) (backend) · [`arwall/AR_REALTIME.md`](arwall/AR_REALTIME.md) (AR engine) · [`arwall/live/README.md`](arwall/live/README.md) (web app).
 
 ## 🚀 What's new in v2.0 (November 2026)
 
@@ -80,7 +94,8 @@ camera ─► temporal de-noise ─► 224 px tracker ─┬─ colour/edge regi
 ## 🗂️ Repository layout
 
 ```
-web/      the app: index.html + service worker + manifest + icons (deployed on Vercel)
+arwall/   v3.0: live web app (live/, deployed on Vercel), Flutter AR app (app/), AI engine (engine/), backend API (backend/), database (db/)
+web/      v2.0 web app: index.html + service worker + manifest + icons
 bench/    evaluation: synthetic room, spill/IoU harness, colour (ΔE00) and flicker benches
 docs/     technical report and showcase images
 code/     the project's first code folder (Nov 2025)
@@ -90,13 +105,15 @@ img/      project images
 ## 💻 Run locally
 
 ```bash
-cd web
+cd arwall/live
 python -m http.server 8080        # open http://localhost:8080
 ```
 
+Backend, AI engine and mobile app: see [`arwall/README.md`](arwall/README.md) and [`arwall/AR_REALTIME.md`](arwall/AR_REALTIME.md).
+
 ## ☁️ Deploy
 
-Vercel: **Add New Project** → import this repository → **Deploy**. `vercel.json` serves `web/` with no build step, and every push to `main` redeploys.
+Vercel: **Add New Project** → import this repository → **Deploy**. `vercel.json` serves `arwall/live/` with no build step, and every push to `main` redeploys.
 
 ---
 
@@ -107,7 +124,8 @@ Vercel: **Add New Project** → import this repository → **Deploy**. `vercel.j
 | Nov 2025 | Project started: aim, problem statement, advantages and proposed features. |
 | Dec 2025 | Team contributions to the project documentation. |
 | Apr 2026 | Documentation refresh. |
-| **Nov 2026** | **v2.0: ARColorize Live.** Real-time AR wall repainting in the browser. |
+| Nov 2026 | v2.0: ARColorize Live. Real-time AR wall repainting in the browser. |
+| **Nov 2026** | **v3.0: ARWall.** New live web app, native Flutter AR app, AI room analysis, backend API and database. |
 
 <details open>
 <summary><b>Project proposal (November 2025)</b></summary>

@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#121110">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AR Wall Live</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* AR Wall Live — full-bleed camera, frosted controls floating over it. Same tokens as the app. */
+:root {
+  color-scheme: dark;
+  --ground: #121110;
+  --glass: rgba(22, 21, 20, 0.66);
+  --glass-solid: #1E1C1A;
+  --raised: rgba(255, 255, 255, 0.10);
+  --line: rgba(255, 255, 255, 0.16);
+  --ink: #F7F3ED;
+  --muted: #C2BAAE;
+  --brass: #C9A46A;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
+  --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--ground); color: var(--ink); font-family: var(--ui); font-size: 14px; overflow: hidden; overscroll-behavior: none; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; background: #000; }
+video { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.glass { background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); border: 0.5px solid var(--line); }
+.round { width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; border: 0.5px solid var(--line); }
+.round svg { width: 20px; height: 20px; }
+.round[disabled] { opacity: .4; }
+.round[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+
+/* Top bar */
+.top { position: fixed; top: calc(10px + var(--st)); left: calc(12px + var(--sl)); right: calc(12px + var(--sr)); display: flex; gap: 8px; align-items: center; z-index: 5; }
+.pill { height: 44px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 14px; font-weight: 600; font-size: 14px; flex: 1; min-width: 0; }
+.live-dot { width: 8px; height: 8px; border-radius: 999px; background: #6FCF8E; box-shadow: 0 0 0 4px rgba(111, 207, 142, .18); flex: none; }
+.live-dot.hold { background: var(--brass); box-shadow: 0 0 0 4px rgba(201, 164, 106, .2); }
+.pill .sub { color: var(--muted); font-weight: 500; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.coach { position: fixed; left: 50%; top: calc(66px + var(--st)); transform: translateX(-50%); z-index: 4; border-radius: 999px; padding: 9px 16px; font-size: 13px; max-width: calc(100% - 32px); text-align: center; pointer-events: none; transition: opacity .25s; }
+.reticle { position: fixed; left: 50%; top: 42%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 999px; border: 2px solid rgba(255,255,255,.85); z-index: 3; pointer-events: none; animation: breathe 2.2s ease-in-out infinite; }
+.reticle::after { content: ""; position: absolute; inset: 16px; border-radius: 999px; background: #fff; }
+@keyframes breathe { 50% { transform: scale(1.18); opacity: .7; } }
+
+.split { position: fixed; top: 0; bottom: 0; width: 2px; background: #fff; z-index: 3; pointer-events: none; }
+.split .knob { position: absolute; top: 46%; left: -22px; width: 46px; height: 46px; border-radius: 999px; background: #fff; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+.split .knob svg { width: 20px; height: 20px; }
+.tagb { position: fixed; top: calc(118px + var(--st)); font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #161514; background: rgba(255,255,255,.88); border-radius: 999px; padding: 4px 10px; z-index: 3; pointer-events: none; }
+
+/* Dock */
+.dock { position: fixed; z-index: 5; left: 50%; transform: translateX(-50%); bottom: calc(12px + var(--sb)); width: min(560px, calc(100% - 24px - var(--sl) - var(--sr))); border-radius: 26px; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 12px; max-height: 58vh; }
+.cur { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dots { display: flex; flex: none; }
+.dot { width: 30px; height: 30px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); }
+.dots .dot + .dot { margin-left: -9px; }
+.cur .t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cur .n { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cur .s { font-size: 12px; color: var(--muted); }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; background: var(--raised); border: 0; font-size: 12px; font-weight: 600; }
+.btn svg { width: 16px; height: 16px; }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+.walls { display: flex; gap: 6px; flex-wrap: wrap; }
+.wchip { display: inline-flex; align-items: center; height: 32px; border-radius: 999px; background: var(--raised); border: 1px solid transparent; font-size: 12px; font-weight: 600; }
+.wchip.on { border-color: var(--ink); }
+.wchip > button { border: 0; background: transparent; height: 100%; display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; }
+.wchip .sw { width: 14px; height: 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); }
+.wchip .x { width: 28px; justify-content: center; padding: 0; color: var(--muted); font-size: 16px; }
+.wchip.lost { opacity: .55; }
+
+.scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: rgba(0,0,0,.35); border-radius: 999px; padding: 4px; flex: none; }
+.tabs button { height: 34px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; font-size: 12px; }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--ground); }
+.tabs button.ai { color: var(--brass); }
+.tabs button.ai[aria-selected="true"] { color: var(--ground); }
+.lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; color: var(--muted); text-transform: uppercase; }
+.rail { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+.rail::-webkit-scrollbar { display: none; }
+.sw-b { border: 0; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; width: 58px; scroll-snap-align: start; }
+.sw-b i { width: 50px; height: 50px; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.2); transition: transform .15s; }
+.sw-b[aria-pressed="true"] i { outline: 3px solid var(--ink); outline-offset: 3px; transform: scale(.92); }
+.sw-b span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.sw-b[aria-pressed="true"] span { color: var(--ink); }
+.anyc { position: relative; overflow: hidden; }
+.anyc i { background: conic-gradient(#C46A4A, #E0B65C, #9CAF88, #7FA1B3, #7A6C9B, #C46A4A); }
+.anyc input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.seg { display: inline-flex; background: rgba(0,0,0,.35); border-radius: 999px; padding: 3px; gap: 3px; flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; color: var(--muted); border-radius: 999px; height: 30px; padding: 0 12px; font-size: 12px; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pat { border: 0; background: transparent; padding: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; flex: none; width: 72px; }
+.pat canvas { width: 72px; height: 58px; border-radius: 10px; border: 1px solid rgba(255,255,255,.22); }
+.pat[aria-pressed="true"] canvas { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pat span { font-size: 11px; color: var(--muted); }
+.pat[aria-pressed="true"] span { color: var(--ink); }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.sty { border: 1px solid var(--line); background: var(--raised); border-radius: 16px; padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column; flex: none; width: 150px; scroll-snap-align: start; }
+.sty .strip { display: flex; height: 30px; }
+.sty .strip i { flex: 1; }
+.sty b { font-size: 13px; padding: 8px 10px 0; }
+.sty small { font-size: 11px; color: var(--muted); padding: 0 10px 9px; }
+
+.read { border: 1px solid rgba(201,164,106,.55); background: rgba(201,164,106,.10); border-radius: 16px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; text-align: left; width: 100%; }
+.read svg { width: 24px; height: 24px; color: var(--brass); flex: none; }
+.read b { display: block; font-size: 14px; }
+.read small { color: var(--muted); font-size: 12px; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fact { background: var(--raised); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fact b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.fact span { font-size: 11px; color: var(--muted); }
+.pal { background: #F7F3ED; color: #161514; border-radius: 16px; overflow: hidden; flex: none; }
+.pal .strip { display: grid; grid-template-columns: 3fr 1fr 1fr 1fr; height: 44px; }
+.pal .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+.pal h3 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 19px; }
+.pal p { margin: 0; font-size: 12.5px; line-height: 1.45; color: #2B2926; }
+.pal .warn { font-size: 12px; color: #6E5226; }
+.pal .try { margin-top: 6px; height: 40px; border-radius: 999px; border: 0; background: #161514; color: #F7F3ED; font-weight: 600; }
+
+/* Intro */
+.intro { position: fixed; inset: 0; z-index: 10; overflow-y: auto; background: radial-gradient(120% 80% at 80% 0%, #2A3328 0%, var(--ground) 55%); padding: calc(28px + var(--st)) max(24px, var(--sr)) calc(28px + var(--sb)) max(24px, var(--sl)); display: flex; flex-direction: column; }
+.intro .inner { max-width: 460px; width: 100%; margin: auto; display: flex; flex-direction: column; gap: 22px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .3px; }
+.brand .tag { font-size: 11px; color: var(--brass); border: 1px solid var(--brass); border-radius: 999px; padding: 3px 9px; letter-spacing: 1.2px; }
+.intro h1 { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(34px, 9vw, 44px); line-height: 1.06; text-wrap: balance; }
+.intro p.lead { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+.steps { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.steps li { display: flex; gap: 14px; align-items: center; background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; }
+.steps li::before { counter-increment: s; content: counter(s); width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center; background: var(--ink); color: var(--ground); font-weight: 700; font-size: 13px; flex: none; }
+.steps b { display: block; font-size: 15px; }
+.steps span { color: var(--muted); font-size: 13px; }
+.cta { height: 56px; border-radius: 999px; border: 0; background: var(--ink); color: var(--ground); font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.cta svg { width: 20px; height: 20px; }
+.ghost { height: 48px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-weight: 600; }
+.fine { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; }
+.err { background: rgba(224, 120, 90, .14); border: 1px solid rgba(224,120,90,.5); border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
+
+/* Sheet (settings / engineer mode) */
+.sheet { position: fixed; z-index: 8; right: calc(12px + var(--sr)); top: calc(62px + var(--st)); width: min(340px, calc(100% - 24px)); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px; background: var(--glass-solid); border: 1px solid var(--line); }
+.sheet h2 { margin: 0; font-size: 15px; }
+.sheet label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+.sheet input[type=range] { width: 100%; accent-color: var(--brass); }
+.toggle { flex-direction: row !important; align-items: center; justify-content: space-between; color: var(--ink) !important; font-size: 13px !important; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--brass); }
+.stats { position: fixed; z-index: 4; left: calc(12px + var(--sl)); top: calc(118px + var(--st)); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(0,0,0,.6); border-radius: 10px; padding: 8px 10px; white-space: pre; pointer-events: none; font-variant-numeric: tabular-nums; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(50vh + var(--sb)); z-index: 9; background: var(--ink); color: var(--ground); border-radius: 999px; padding: 9px 16px; font-weight: 600; font-size: 13px; max-width: calc(100% - 32px); text-align: center; }
+.flash { position: fixed; inset: 0; background: #fff; z-index: 7; pointer-events: none; animation: flash .45s ease-out forwards; }
+@keyframes flash { from { opacity: .85; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .reticle { animation: none; } .flash { animation: none; opacity: 0; } }
+@media (min-width: 900px) {
+  .dock { left: auto; right: calc(16px + var(--sr)); transform: none; top: calc(70px + var(--st)); bottom: auto; width: 380px; max-height: calc(100% - 90px); }
+  .toast { bottom: 40px; }
+}
+</style>
+</head>
+<body>
+<video id="video" playsinline muted autoplay></video>
+<canvas id="gl" aria-label="Live camera. Tap a wall to paint it."></canvas>
+
+<!-- Intro -->
+<section class="intro" id="intro">
+  <div class="inner">
+    <div class="brand">AR Wall <span class="tag">LIVE</span></div>
+    <h1>Paint your walls, live through your camera</h1>
+    <p class="lead">Shadows, lamp light and texture stay real, so the colour you see is the colour you get.</p>
+    <ol class="steps">
+      <li><div><b>Point</b><span>Aim at the wall you want to change</span></div></li>
+      <li><div><b>Tap</b><span>Tap the wall. Doors, windows and furniture stay as they are</span></div></li>
+      <li><div><b>Swipe</b><span>Try colours, designs and whole-room styles</span></div></li>
+    </ol>
+    <div class="err" id="camErr" hidden></div>
+    <button class="cta" id="startCam" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      Start camera
+    </button>
+    <button class="ghost" id="startDemo" type="button">No camera? Try the demo room</button>
+    <button class="ghost" id="installBtn" type="button" hidden>Install app on this phone</button>
+    <p class="fine" id="iosHint" hidden>To install: tap Share, then “Add to Home Screen”.</p>
+    <p class="fine">The camera runs only on this phone. Nothing is recorded or uploaded unless you save a photo.</p>
+  </div>
+</section>
+
+<!-- Live UI -->
+<div class="top" id="top" hidden>
+  <div class="pill glass"><span class="live-dot" id="liveDot"></span><span>Live</span><span class="sub" id="topSub">Point at a wall</span></div>
+  <button class="round glass" id="undoBtn" type="button" aria-label="Undo" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+  <button class="round glass" id="holdBtn" type="button" aria-label="Hold frame" aria-pressed="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg></button>
+  <button class="round glass" id="shotBtn" type="button" aria-label="Save photo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="4"/><path d="M4 8h3l2-3h6l2 3h3v11H4z"/></svg></button>
+  <button class="round glass" id="gearBtn" type="button" aria-label="Settings and engineer mode" aria-pressed="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+</div>
+<div class="coach glass" id="coach" role="status" hidden></div>
+<div class="reticle" id="reticle" hidden></div>
+<div class="split" id="split" hidden><div class="knob"><svg viewBox="0 0 24 24" fill="none" stroke="#161514" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div></div>
+<span class="tagb" id="tagBefore" hidden>BEFORE</span><span class="tagb" id="tagAfter" hidden>AFTER</span>
+<pre class="stats" id="stats" hidden></pre>
+
+<section class="sheet" id="sheet" hidden aria-label="Settings">
+  <h2>Settings</h2>
+  <label for="sens">Edge sensitivity: lower it if paint spills onto furniture, raise it if the wall isn’t fully covered
+    <input id="sens" type="range" min="0.5" max="2" step="0.05" value="1"></label>
+  <label for="wallWidth">Visible wall width, used to size designs: <span id="wallWidthV">3.5 m</span>
+    <input id="wallWidth" type="range" min="2" max="8" step="0.5" value="3.5"></label>
+  <label class="toggle" for="engMode">Engineer mode (stats + mask overlay)<input id="engMode" type="checkbox"></label>
+  <label class="toggle" for="maskView">Show detected wall mask<input id="maskView" type="checkbox"></label>
+  <button class="btn" id="resetBtn" type="button">Clear all walls</button>
+</section>
+
+<section class="dock glass" id="dock" hidden aria-label="Paint controls">
+  <div class="cur">
+    <span class="dots" id="curDots"></span>
+    <span class="t"><span class="n" id="curName">Sage</span><span class="s" id="curSub">Solid · Matte</span></span>
+    <button class="btn" id="cmpBtn" type="button" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>Compare</button>
+  </div>
+  <div class="walls" id="walls"></div>
+  <div class="scroll">
+    <div id="p-colours" role="tabpanel" aria-labelledby="t-colours" style="display:flex;flex-direction:column;gap:10px">
+      <div class="row" id="editRow" hidden><span class="lbl">Editing</span><span class="seg"><button type="button" id="editA" aria-pressed="true">Base</button><button type="button" id="editB" aria-pressed="false">Design colour</button></span></div>
+      <div class="rail" id="swatches"></div>
+      <div class="row"><span class="lbl">Finish</span><span class="seg" id="finishes"></span></div>
+    </div>
+    <div id="p-designs" role="tabpanel" aria-labelledby="t-designs" hidden style="display:flex;flex-direction:column;gap:10px">
+      <div class="rail" id="patterns"></div>
+      <span class="hint" id="patHint"></span>
+    </div>
+    <div id="p-styles" role="tabpanel" aria-labelledby="t-styles" hidden style="display:flex;flex-direction:column;gap:10px">
+      <div class="rail" id="styles"></div>
+      <span class="hint">A style repaints the selected wall with a curated look.</span>
+    </div>
+    <div id="p-read" role="tabpanel" aria-labelledby="t-read" hidden style="display:flex;flex-direction:column;gap:10px">
+      <button class="read" id="readBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+        <span><b>Read my room</b><small>Measures your light and wall, then suggests 3 palettes</small></span>
+      </button>
+      <div id="readOut" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Tools">
+    <button role="tab" id="t-colours" aria-selected="true" aria-controls="p-colours">Colours</button>
+    <button role="tab" id="t-designs" aria-selected="false" aria-controls="p-designs">Designs</button>
+    <button role="tab" id="t-styles" aria-selected="false" aria-controls="p-styles">Styles</button>
+    <button role="tab" id="t-read" class="ai" aria-selected="false" aria-controls="p-read">✦ Room</button>
+  </div>
+</section>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+/* =============================================================================
+   AR Wall Live — realtime wall painting in the browser.
+
+   Per camera frame:
+     1. TRACK (CPU, low-res ~160×120, ~2–5 ms): for every tapped wall, grow the
+        wall region from seeds kept from the previous frame. Growth stops at
+        colour changes and edges, so doors, windows, switchboards and furniture
+        are excluded. Masks are smoothed over time so edges don't flicker.
+     2. PAINT (GPU, full-res, <1 ms): WebGL shader recolours wall pixels with the
+        lighting-preserving model from engine/reference/paint_math.py. Mask edges
+        are refined at full resolution with the camera's own colours.
+   Rendering is decoupled from tracking, so the picture stays at display rate
+   even if tracking runs slower on an old phone.
+   ============================================================================= */
+
+// ------------------------------------------------------------------ catalog
+const COLORS = [["#F2EEE6","Linen"],["#E9E4DA","Oat"],["#D9CFC1","Sandstone"],["#9CAF88","Sage"],["#6E7F64","Olive"],["#3F5E4B","Forest"],["#C9D8DE","Mist"],["#7FA1B3","Harbour"],["#1F2A44","Midnight"],["#D8A7A0","Blush"],["#C46A4A","Terracotta"],["#E0B65C","Ochre"],["#7A6C9B","Heather"],["#2B2F36","Graphite"]];
+const PATTERNS = [
+  {id:0,key:"solid",label:"Solid",hint:"One colour, wall to wall."},
+  {id:1,key:"two_tone",label:"Two-tone",hint:"Lower band at chair-rail height (95 cm), following your floor line."},
+  {id:2,key:"stripes_vertical",label:"Stripes",hint:"30 cm vertical stripes add height."},
+  {id:3,key:"stripes_horizontal",label:"Bands",hint:"25 cm horizontal bands make a room feel wider."},
+  {id:4,key:"ombre",label:"Ombré",hint:"A soft fade from ceiling to floor."},
+  {id:5,key:"mountain",label:"Mountain",hint:"Geometric peaks along the lower wall."},
+  {id:6,key:"arch",label:"Arch",hint:"A painted arch, 1.4 m wide, centred where you tapped."},
+  {id:7,key:"color_block",label:"Block",hint:"A 1.2 m colour block, centred where you tapped."},
+];
+const FINISHES = {matte:[0.05,"Matte"],eggshell:[0.18,"Eggshell"],satin:[0.36,"Satin"],semi_gloss:[0.60,"Semi-gloss"]};
+const STYLES = [
+  {name:"Scandinavian Calm",mood:"Airy · restful",sw:["#E9E4DA","#F7F5F0","#FBFAF7","#D9CFC1"],look:{a:"#E9E4DA",nameA:"Oat",pattern:0,finish:"matte"}},
+  {name:"Modern Luxe",mood:"Moody · dramatic",sw:["#2B2F36","#1F2226","#F2EFEA","#B08D57"],look:{a:"#2B2F36",nameA:"Graphite",pattern:0,finish:"eggshell"}},
+  {name:"Japandi",mood:"Grounded · minimal",sw:["#D9CFC1","#8C7B6B","#5B4E44","#F4F0EA"],look:{a:"#D9CFC1",b:"#8C7B6B",nameA:"Sandstone",nameB:"Walnut",pattern:1,finish:"matte"}},
+  {name:"Warm Terracotta",mood:"Sunny · sociable",sw:["#EFE6D8","#C46A4A","#7A4B33","#F7F2EA"],look:{a:"#EFE6D8",b:"#C46A4A",nameA:"Plaster",nameB:"Terracotta",pattern:6,finish:"matte"}},
+  {name:"Coastal",mood:"Fresh · light",sw:["#F6F6F2","#9FB7C3","#C9D8DE","#FFFFFF"],look:{a:"#F6F6F2",b:"#9FB7C3",nameA:"Salt",nameB:"Harbour",pattern:2,finish:"satin"}},
+  {name:"Forest Retreat",mood:"Natural · cocooning",sw:["#E8DFD0","#3F5E4B","#8FA382","#F3EFE7"],look:{a:"#E8DFD0",b:"#3F5E4B",nameA:"Parchment",nameB:"Forest",pattern:5,finish:"matte"}},
+  {name:"Dusk Ombré",mood:"Dreamy · soft",sw:["#F4E9DC","#7A6C9B","#C98C8C","#F8F3EC"],look:{a:"#F4E9DC",b:"#7A6C9B",nameA:"Shell",nameB:"Heather",pattern:4,finish:"matte"}},
+  {name:"Midnight Gallery",mood:"Tailored · cinematic",sw:["#1F2A44","#3A4A68","#B08D57","#E9E4DA"],look:{a:"#E9E4DA",b:"#1F2A44",nameA:"Ivory",nameB:"Midnight",pattern:1,finish:"eggshell"}},
+];
+const CURATED = [
+  {name:"Morning Linen",tone:"warm",psychology:"Pale warm neutrals quiet the eye and help you unwind; the room feels bigger and slower.",colors:[["primary","#ECE4D6","Linen"],["accent","#9CAF88","Sage"],["trim","#F7F4EE","Chalk"],["ceiling","#FBF9F5","Paper"]],pattern:0},
+  {name:"Coastal Breath",tone:"cool",psychology:"Soft blue-greens are linked with a calmer pulse and clearer focus; good for studies and bathrooms.",colors:[["primary","#D5E1E2","Sea Mist"],["secondary","#9FB7C3","Harbour"],["trim","#F6F6F2","Salt"],["ceiling","#FFFFFF","Cloud"]],pattern:2},
+  {name:"Terracotta Supper",tone:"warm",psychology:"Clay tones raise perceived warmth and draw people together; great where you host.",colors:[["primary","#EFE6D8","Plaster"],["secondary","#C46A4A","Terracotta"],["accent","#7A4B33","Clay Pot"],["trim","#F6F0E6","Bone"]],pattern:6},
+  {name:"Forest Study",tone:"green",psychology:"Deep green reads as nature and safety; it softens screens and makes evenings cosy.",colors:[["primary","#3F5E4B","Forest"],["secondary","#E8DFD0","Parchment"],["accent","#C49A6C","Oak"],["trim","#E8DFD0","Parchment"]],pattern:0},
+  {name:"Midnight Gallery",tone:"cool",psychology:"Inky blue feels protective and sophisticated; art and brass hardware glow against it.",colors:[["primary","#1F2A44","Midnight"],["secondary","#E9E4DA","Ivory"],["accent","#B08D57","Brass"],["trim","#E9E4DA","Ivory"]],pattern:0},
+];
+const MAX_WALLS = 3;
+
+// ------------------------------------------------------------------ colour helpers
+const LIN = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const c = i / 255; LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+const lum3 = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+function hexLin(h) { const n = parseInt(h.slice(1), 16); return [LIN[(n >> 16) & 255], LIN[(n >> 8) & 255], LIN[n & 255]]; }
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function linToHex(r, g, b) { const s = c => { c = Math.max(0, Math.min(1, c)); return Math.round(255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); };
+  return "#" + [s(r), s(g), s(b)].map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase(); }
+function lrv(h) { const [r, g, b] = hexLin(h); return lum3(r, g, b) * 100; }
+function undertone(h) {
+  const [r, g, b] = hexLin(h); const X = .4124*r+.3576*g+.1805*b, Y = .2126*r+.7152*g+.0722*b, Z = .0193*r+.1192*g+.9505*b;
+  const f = t => t > 216/24389 ? Math.cbrt(t) : (24389/27*t+16)/116;
+  const fx = f(X/.95047), fy = f(Y), fz = f(Z/1.08883), A = 500*(fx-fy), B = 200*(fy-fz);
+  if (Math.hypot(A, B) < 3) return "neutral";
+  const hue = (Math.atan2(B, A) * 180 / Math.PI + 360) % 360;
+  return hue >= 20 && hue < 100 ? "warm" : hue >= 100 && hue < 170 ? "green" : hue >= 170 && hue < 300 ? "cool" : "warm";
+}
+
+// ------------------------------------------------------------------ DOM
+const $ = id => document.getElementById(id);
+const video = $("video"), canvas = $("gl");
+let toastT = 0;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2400); }
+let coachMsg = "";
+function coach(msg) { if (msg === coachMsg) return; coachMsg = msg; $("coach").textContent = msg; $("coach").hidden = !msg; }
+function haptic(ms = 12) { try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {} }
+
+// ------------------------------------------------------------------ state
+let src = null, srcW = 0, srcH = 0, running = false, held = false, demo = false;
+let lw = 160, lh = 120, n = lw * lh;
+let L, CR, CG, CRR, CGR, Y, GR, INR, Q, TMP, TMP2, TMP3, RR, GG, BB, LOCY, maskBytes, floorBytes;
+let renderScale = 1;   // lowered automatically if the phone can't keep up
+const acanvas = document.createElement("canvas");
+const actx = acanvas.getContext("2d", { willReadFrequently: true });
+const walls = [];      // {rc, rg, m, floor, area, lost, seed, look, yRef, tint, tap:{x,y,t}, ux}
+let sel = -1;
+let look = { a: "#9CAF88", nameA: "Sage", b: "#C46A4A", nameB: "Terracotta", pattern: 0, finish: "matte" };
+let editB = false, compare = false, split = 0.5;
+const undoStack = [];
+const stats = { fps: 0, trackMs: 0, readMs: 0, lastT: 0, frames: 0, slow: 0, noiseG: 0, noiseC: 0 };
+
+function allocBuffers(w, h) {
+  lw = w; lh = h; n = w * h;
+  acanvas.width = w; acanvas.height = h;
+  L = new Float32Array(n); CR = new Float32Array(n); CG = new Float32Array(n); Y = new Float32Array(n); GR = new Float32Array(n);
+  CRR = new Float32Array(n); CGR = new Float32Array(n); RR = new Float32Array(n); GG = new Float32Array(n); BB = new Float32Array(n); LOCY = new Float32Array(n); TMP3 = new Float32Array(n);
+  INR = new Uint8Array(n); Q = new Int32Array(n); TMP = new Float32Array(n); TMP2 = new Float32Array(n);
+  maskBytes = new Uint8Array(n * 4); floorBytes = new Uint8Array(w * 4);
+}
+
+function boxBlur(a, w, h, r, tmp) {
+  const k = 2 * r + 1;
+  for (let y = 0; y < h; y++) { const o = y * w; let s = 0;
+    for (let x = -r; x <= r; x++) s += a[o + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) { tmp[o + x] = s / k; s += a[o + Math.min(w - 1, x + r + 1)] - a[o + Math.max(0, x - r)]; } }
+  for (let x = 0; x < w; x++) { let s = 0;
+    for (let y = -r; y <= r; y++) s += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) { a[y * w + x] = s / k; s += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x]; } }
+}
+
+// ------------------------------------------------------------------ 1. TRACK
+function analyseFrame() {
+  const t0 = performance.now();
+  actx.imageSmoothingEnabled = true; actx.imageSmoothingQuality = "high";
+  actx.drawImage(src, 0, 0, lw, lh);
+  const d = actx.getImageData(0, 0, lw, lh).data;
+  const tRead = performance.now();
+  // de-noise before tracking: sensor noise and plaster texture otherwise punch holes in the wall
+  for (let i = 0, j = 0; i < n; i++, j += 4) { const r = LIN[d[j]], g = LIN[d[j + 1]], b = LIN[d[j + 2]], s = r + g + b + 1e-4;
+    RR[i] = r; GG[i] = g; BB[i] = b; CRR[i] = r / s; CGR[i] = g / s; }
+  boxBlur(RR, lw, lh, 1, TMP2); boxBlur(GG, lw, lh, 1, TMP2); boxBlur(BB, lw, lh, 1, TMP2);
+  for (let i = 0; i < n; i++) {
+    const r = RR[i], g = GG[i], b = BB[i], s = r + g + b + 1e-4, y = lum3(r, g, b);
+    Y[i] = y; L[i] = Math.log(y + 0.004); CR[i] = r / s; CG[i] = g / s;
+  }
+  GR.fill(0);
+  for (let y = 1; y < lh - 1; y++) for (let x = 1; x < lw - 1; x++) {
+    const i = y * lw + x;
+    const gx = L[i-lw+1] + 2*L[i+1] + L[i+lw+1] - L[i-lw-1] - 2*L[i-1] - L[i+lw-1];
+    const gy = L[i+lw-1] + 2*L[i+lw] + L[i+lw+1] - L[i-lw-1] - 2*L[i-lw] - L[i-lw+1];
+    GR[i] = Math.hypot(gx, gy) * 0.25 + 15 * (Math.abs(CR[i+1] - CR[i-1]) + Math.abs(CR[i+lw] - CR[i-lw]) + Math.abs(CG[i+1] - CG[i-1]) + Math.abs(CG[i+lw] - CG[i-lw]));
+  }
+  // Noise floor of this camera in this light: dim rooms and cheap sensors are noisier, so the
+  // edge threshold and colour tolerance scale with it instead of punching holes in the wall.
+  if (stats.frames % 15 === 0) {
+    const sg = [], sc = [];
+    for (let i = lw + 1, c = 0; i < n - lw - 1 && c < 1500; i += 9, c++) { sg.push(GR[i]); sc.push(Math.abs(CR[i + 1] - CR[i - 1]) * 0.5); }
+    sg.sort((p, q) => p - q); sc.sort((p, q) => p - q);
+    stats.noiseG = sg[(sg.length * 0.5) | 0] || 0; stats.noiseC = sc[(sc.length * 0.5) | 0] || 0;
+  }
+  for (const w of walls) track(w);
+  localWallLuminance();
+  upload();
+  const t1 = performance.now();
+  stats.readMs = stats.readMs * 0.9 + (tRead - t0) * 0.1;          // frame copy from the camera
+  stats.trackMs = stats.trackMs * 0.9 + (t1 - tRead) * 0.1;        // our CPU work
+}
+
+// Local wall brightness, spread a little past the mask edge. The shader compares each
+// full-res pixel with it, so a white switchboard on a white wall still gets a crisp edge.
+function edgeThreshold() { const k = +$("sens").value; return Math.min(0.78 * k, Math.max(0.26 * k, 4 * stats.noiseG)); }
+
+function localWallLuminance() {
+  LOCY.fill(0); if (!walls.length) return;
+  for (let i = 0; i < n; i++) { let u = 0; for (const w of walls) if (w.core[i]) { u = 1; break; } TMP[i] = u * Y[i]; TMP3[i] = u; }
+  boxBlur(TMP, lw, lh, 2, TMP2); boxBlur(TMP3, lw, lh, 2, TMP2);
+  for (let i = 0; i < n; i++) LOCY[i] = TMP3[i] > 0.04 ? TMP[i] / TMP3[i] : 0;
+}
+
+function track(w) {
+  const k = +$("sens").value, tc = Math.min(0.05 * k, Math.max(0.022 * k, 3 * stats.noiseC)), tl = 0.10 * k, tg = edgeThreshold();
+  const match = i => Math.abs(CR[i] - w.rc) < tc && Math.abs(CG[i] - w.rg) < tc && GR[i] < tg;
+  INR.fill(0); let qt = 0;
+  if (w.seed) {                                   // first frame after a tap: search a 7×7 box for a clean seed
+    const sx = Math.round(w.seed.x * (lw - 1)), sy = Math.round(w.seed.y * (lh - 1));
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const x = sx + dx, y = sy + dy; if (x < 0 || y < 0 || x >= lw || y >= lh) continue;
+      const i = y * lw + x; if (!INR[i] && match(i)) { INR[i] = 1; Q[qt++] = i; } }
+    w.seed = null;
+  } else {
+    const stride = Math.max(1, (n / 600) | 0);
+    for (let i = (stats.frames % stride); i < n; i += stride) if (w.m[i] > 0.75 && match(i) && !INR[i]) { INR[i] = 1; Q[qt++] = i; }
+    if (!qt && w.lost > 12) {                     // re-acquire anywhere once tracking is lost
+      for (let i = 0; i < n; i += 5) if (GR[i] < tg * 0.5 && match(i)) { INR[i] = 1; Q[qt++] = i; }
+    }
+  }
+  let area = 0, sr = 0, sg = 0, linR = 0, linG = 0, linB = 0;
+  const hist = new Uint32Array(256);
+  let qh = 0;
+  while (qh < qt) {
+    const p = Q[qh++]; area++;
+    sr += CR[p]; sg += CG[p]; hist[Math.min(255, (Math.sqrt(Y[p]) * 255) | 0)]++;
+    const x = p % lw, lp = L[p];
+    if (x > 0) { const m = p - 1; if (!INR[m] && match(m) && Math.abs(L[m] - lp) < tl) { INR[m] = 1; Q[qt++] = m; } }
+    if (x < lw - 1) { const m = p + 1; if (!INR[m] && match(m) && Math.abs(L[m] - lp) < tl) { INR[m] = 1; Q[qt++] = m; } }
+    if (p >= lw) { const m = p - lw; if (!INR[m] && match(m) && Math.abs(L[m] - lp) < tl) { INR[m] = 1; Q[qt++] = m; } }
+    if (p < n - lw) { const m = p + lw; if (!INR[m] && match(m) && Math.abs(L[m] - lp) < tl) { INR[m] = 1; Q[qt++] = m; } }
+  }
+  const frac = area / n;
+  w.coverage = frac;
+  if (frac < 0.004 || frac > 0.97) {             // lost (or exploded across the whole frame)
+    w.lost++; for (let i = 0; i < n; i++) w.m[i] *= 0.82; return;
+  }
+  w.lost = 0; w.everFound = true;
+  // closing: fill pinholes (texture, nail holes) without crossing real edges
+  for (let i = 0; i < n; i++) TMP[i] = INR[i];
+  boxBlur(TMP, lw, lh, 1, TMP2); for (let i = 0; i < n; i++) TMP[i] = TMP[i] > 0.2 ? 1 : 0;
+  boxBlur(TMP, lw, lh, 1, TMP2); for (let i = 0; i < n; i++) TMP[i] = TMP[i] > 0.8 ? 1 : 0;
+  // fill pinholes only (≤6 low-res px); real objects like switchboards are bigger and stay unpainted
+  fillPinholes(TMP);
+  for (let i = 0; i < n; i++) w.core[i] = TMP[i];   // core wall area, before edge growth (reference brightness comes from here)
+  // grow 3 px into wall-coloured pixels right up to object edges (unsmoothed colour, so mixed edge
+  // pixels qualify); the shader then trims precisely at full resolution
+  for (let it = 0; it < 3; it++) {
+    TMP2.set(TMP);
+    for (let i = lw; i < n - lw; i++) {
+      if (TMP[i]) continue; const x = i % lw; if (x === 0 || x === lw - 1) continue;
+      if ((TMP[i - 1] || TMP[i + 1] || TMP[i - lw] || TMP[i + lw]) &&
+          Math.abs(CRR[i] - w.rc) < tc * 2 && Math.abs(CGR[i] - w.rg) < tc * 2) TMP2[i] = 0.5;   // 0.5 = candidate, decided per pixel by the shader
+    }
+    TMP.set(TMP2);
+  }
+  const a = w.fresh ? 0 : 0.45; w.fresh = false;
+  for (let i = 0; i < n; i++) w.m[i] = w.m[i] * a + TMP[i] * (1 - a);
+  // slowly follow white-balance / exposure drift
+  w.rc += (sr / area - w.rc) * 0.06; w.rg += (sg / area - w.rg) * 0.06;
+  let acc = 0, med = 0; for (let b = 0; b < 256; b++) { acc += hist[b]; if (acc >= area / 2) { med = b; break; } }
+  const yr = Math.max(0.004, (med / 255) ** 2);
+  w.yRef = w.yRef ? w.yRef * 0.85 + yr * 0.15 : yr;
+  // floor line per column (bottom edge of the wall) for floor-referenced designs
+  // Furniture hides the true wall bottom in some columns (their bottom is higher up), so fit a
+  // straight floor line only through the lowest 40% of column bottoms (skirting is straight).
+  const xs = [], ys = [];
+  for (let x = 0; x < lw; x++) for (let y = lh - 1; y >= 0; y--) if (TMP[y * lw + x] > 0.5) { xs.push(x); ys.push((y + 1) / lh); break; }
+  if (xs.length >= 6) {
+    const cut = [...ys].sort((p, q) => q - p)[Math.max(0, Math.floor(ys.length * 0.4) - 1)];
+    let sx = 0, sy = 0, sxx = 0, sxy = 0, c = 0;
+    for (let k = 0; k < xs.length; k++) if (ys[k] >= cut) { sx += xs[k]; sy += ys[k]; sxx += xs[k] * xs[k]; sxy += xs[k] * ys[k]; c++; }
+    const den = c * sxx - sx * sx;
+    let slope = den > 1e-6 ? (c * sxy - sx * sy) / den : 0;
+    slope = Math.max(-0.004, Math.min(0.004, slope));          // keep the line plausible (perspective tilt only)
+    const icpt = (sy - slope * sx) / c;
+    for (let x = 0; x < lw; x++) { const v = icpt + slope * x; w.floor[x] = w.floor[x] > 0 ? w.floor[x] * 0.8 + v * 0.2 : v; }
+  }
+}
+
+function fillPinholes(M) {
+  // label non-wall components; fill tiny ones that don't touch the frame border
+  // INR: 0 = unvisited, 1 = visited in the current search, 2 = belongs to a large (kept) component
+  INR.fill(0);
+  for (let s = 0; s < n; s++) {
+    if (M[s] || INR[s]) continue;
+    let qt = 0, qh = 0, large = false; Q[qt++] = s; INR[s] = 1;
+    while (qh < qt) {
+      const p = Q[qh++], x = p % lw;
+      if (x === 0 || x === lw - 1 || p < lw || p >= n - lw) { large = true; break; }
+      const nb = [p - 1, p + 1, p - lw, p + lw];
+      for (const m of nb) { if (M[m]) continue; if (INR[m] === 2) { large = true; break; } if (!INR[m]) { INR[m] = 1; Q[qt++] = m; } }
+      if (large || qt > 6) { large = true; break; }
+    }
+    for (let k = 0; k < qt; k++) { if (large) INR[Q[k]] = 2; else M[Q[k]] = 1; }
+  }
+}
+
+function upload() {
+  maskBytes.fill(0); floorBytes.fill(0);
+  for (let i = 0, j = 3; i < n; i++, j += 4) maskBytes[j] = Math.min(255, Math.sqrt(LOCY[i]) * 255);
+  walls.forEach((w, k) => {
+    for (let i = 0, j = k; i < n; i++, j += 4) maskBytes[j] = w.m[i] * 255;
+    for (let x = 0; x < lw; x++) floorBytes[x * 4 + k] = Math.max(0, Math.min(255, w.floor[x] * 255));
+  });
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texMask);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lw, lh, 0, gl.RGBA, gl.UNSIGNED_BYTE, maskBytes);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texFloor);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lw, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, floorBytes);
+}
+
+// ------------------------------------------------------------------ 2. PAINT (WebGL)
+const VS = `attribute vec2 p; varying vec2 vUV; void main(){ vUV = vec2(p.x*0.5+0.5, 0.5-p.y*0.5); gl_Position = vec4(p,0.0,1.0); }`;
+const FS = `
+precision highp float;
+varying vec2 vUV;
+uniform sampler2D uCam, uMask, uFloor;
+uniform vec2 uScale;           // object-fit: cover
+uniform float uSplit, uTime, uMetres, uVAsp, uPx, uTc, uDebug;
+uniform vec3 uTint;
+uniform vec3 uRef[3]; uniform vec3 uA[3]; uniform vec3 uB[3];
+uniform float uPat[3]; uniform float uSpec[3]; uniform float uYRef[3]; uniform float uOn[3]; uniform float uUx[3];
+uniform vec3 uTap[3];
+const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+vec3 toLin(vec3 c){ return mix(pow((c+0.055)/1.055, vec3(2.4)), c/12.92, step(c, vec3(0.04045))); }
+vec3 toSrgb(vec3 c){ c = clamp(c, 0.0, 1.0); return mix(1.055*pow(c, vec3(1.0/2.4))-0.055, c*12.92, step(c, vec3(0.0031308))); }
+vec3 softClip(vec3 x){ vec3 o = max(x-0.8, 0.0); return min(x, vec3(0.8)) + 0.2*(1.0-exp(-o/0.2)); }
+float aa(float e, float x){ return clamp((x-e)/uPx*0.5+0.5, 0.0, 1.0); }
+float pm(float x, float m){ return x - m*floor(x/m); }
+float pattern(int p, float u, float v, float cx){
+  if (p==1) return 1.0-aa(0.95, v);
+  if (p==2) { float t = pm(u, 0.6); return aa(0.3, t)*(1.0-aa(0.6-uPx, t)); }
+  if (p==3) { float t = pm(v, 0.5); return aa(0.25, t)*(1.0-aa(0.5-uPx, t)); }
+  if (p==4) { float t = clamp((v-0.3)/1.9, 0.0, 1.0); return 1.0 - t*t*(3.0-2.0*t); }
+  if (p==5) { float tri = 1.0-abs(2.0*fract(u/1.6)-1.0); return 1.0-aa(0.9+0.7*tri, v); }
+  if (p==6) { float r = 0.7, sp = 2.1-r;
+              float rect = (1.0-aa(r, abs(u-cx)))*(1.0-aa(sp, v));
+              float dome = (1.0-aa(r, length(vec2(u-cx, v-sp))))*aa(sp, v);
+              return clamp(rect+dome, 0.0, 1.0); }
+  if (p==7) return aa(cx-0.6, u)*(1.0-aa(cx+0.6, u))*aa(0.0, v)*(1.0-aa(1.8, v));
+  return 0.0;
+}
+void main(){
+  vec2 uv = (vUV-0.5)*uScale+0.5;
+  vec3 cam = texture2D(uCam, uv).rgb;
+  if (vUV.x < uSplit) { gl_FragColor = vec4(cam, 1.0); return; }
+  vec4 mk = texture2D(uMask, uv);
+  vec4 fl = texture2D(uFloor, vec2(uv.x, 0.5));
+  vec3 lin = toLin(cam);
+  float y = dot(lin, LUMA);
+  vec2 ch = lin.rg/(lin.r+lin.g+lin.b+1e-4);
+  vec3 col = cam;
+  for (int i = 0; i < 3; i++) {
+    if (uOn[i] < 0.5) continue;
+    float m = i==0 ? mk.r : (i==1 ? mk.g : mk.b);
+    if (m < 0.3) continue;
+    float a;
+    // full-res edge refinement with the camera's own colour AND brightness
+    // m ≈ 1: core wall (always painted). m ≈ 0.5: candidate edge pixel, painted only if this full-res
+    // pixel matches the wall in colour and brightness. Gives crisp edges at frames, switches, furniture.
+    float nearC = 1.0 - smoothstep(uTc, uTc*2.4, distance(ch, uRef[i].xy));
+    float ly = mk.a*mk.a;
+    float nearL = ly > 1e-3 ? 1.0 - smoothstep(0.16, 0.34, abs(log((y+0.004)/(ly+0.004)))) : 1.0;
+    a = max(smoothstep(0.62, 0.9, m), smoothstep(0.3, 0.45, m) * nearC * nearL);
+    // reveal ripple from the tap point
+    vec3 tp = uTap[i];
+    float rad = (uTime - tp.z) * 1.6;
+    float d = length(vec2((uv.x-tp.x), (uv.y-tp.y)*uVAsp));
+    a *= 1.0 - smoothstep(rad-0.08, rad, d);
+    if (a < 0.002) continue;
+    if (uDebug > 0.5) { vec3 dc = i==0 ? vec3(1.0,0.2,0.8) : (i==1 ? vec3(0.2,0.9,1.0) : vec3(1.0,0.8,0.2)); col = mix(col, dc, a*0.55); continue; }
+    float floorY = i==0 ? fl.r : (i==1 ? fl.g : fl.b);
+    float u = uv.x*uMetres, v = (floorY - uv.y)*uMetres*uVAsp;
+    float w = pattern(int(uPat[i]+0.5), u, v, uUx[i]*uMetres);
+    vec3 paint = mix(uA[i], uB[i], w);
+    float yr = max(uYRef[i], 1e-3), s = y/yr;
+    float py = dot(paint, LUMA);
+    vec3 dir = py > 1e-5 ? paint/py : vec3(0.0);
+    float lvl = yr*pow(max(py, 0.0)/0.65, 0.85);
+    vec3 o = dir*lvl*uTint*s + uSpec[i]*max(s-1.3, 0.0)*yr;
+    float rim = (1.0-smoothstep(0.0, 0.03, abs(d-rad))) * step(rad, 1.6) * 0.25;
+    col = mix(col, toSrgb(softClip(o)) + rim, a);
+  }
+  gl_FragColor = vec4(col, 1.0);
+}`;
+const gl = canvas.getContext("webgl", { alpha: false, antialias: false, preserveDrawingBuffer: false, powerPreference: "high-performance" });
+let prog, texCam, texMask, texFloor, U = {};
+function initGL() {
+  if (!gl) throw new Error("WebGL is not available in this browser.");
+  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o);
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+  prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog); if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const mk = unit => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); return t; };
+  texCam = mk(0); texMask = mk(1); texFloor = mk(2);
+  ["uCam","uMask","uFloor","uScale","uSplit","uTime","uMetres","uVAsp","uPx","uTc","uDebug","uTint","uRef","uA","uB","uPat","uSpec","uYRef","uOn","uUx","uTap"]
+    .forEach(k => U[k] = gl.getUniformLocation(prog, k));
+  gl.uniform1i(U.uCam, 0); gl.uniform1i(U.uMask, 1); gl.uniform1i(U.uFloor, 2);
+}
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2) * renderScale;
+  canvas.width = Math.round(innerWidth * dpr); canvas.height = Math.round(innerHeight * dpr);
+  gl.viewport(0, 0, canvas.width, canvas.height); updateSplitUI();
+}
+function coverScale() {
+  const sa = canvas.width / canvas.height, va = srcW / srcH;
+  return va > sa ? [sa / va, 1] : [1, va / sa];
+}
+function draw(now) {
+  if (!held) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texCam);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, src); }
+  const sc = coverScale(), t = now / 1000;
+  gl.uniform2f(U.uScale, sc[0], sc[1]);
+  gl.uniform1f(U.uSplit, compare ? split : -1);
+  gl.uniform1f(U.uTime, t);
+  const metres = +$("wallWidth").value;
+  gl.uniform1f(U.uMetres, metres);
+  gl.uniform1f(U.uVAsp, srcH / srcW);
+  gl.uniform1f(U.uPx, metres * sc[0] / canvas.width * 1.5);
+  gl.uniform1f(U.uTc, Math.min(0.05, Math.max(0.022 * +$("sens").value, 3 * stats.noiseC)));
+  gl.uniform1f(U.uDebug, $("maskView").checked ? 1 : 0);
+  const ref = [], A = [], B = [], pat = [], spec = [], yref = [], on = [], ux = [], tap = [];
+  let tint = [1, 1, 1];
+  for (let k = 0; k < 3; k++) {
+    const w = walls[k];
+    if (!w) { ref.push(0, 0, 0); A.push(0, 0, 0); B.push(0, 0, 0); tap.push(0, 0, -99); pat.push(0); spec.push(0); yref.push(0.2); on.push(0); ux.push(0.5); continue; }
+    ref.push(w.rc, w.rg, 0); A.push(...hexLin(w.look.a)); B.push(...hexLin(w.look.pattern ? w.look.b : w.look.a));
+    tap.push(w.tap.x, w.tap.y, w.tap.t); pat.push(w.look.pattern); spec.push(FINISHES[w.look.finish][0]);
+    yref.push(w.yRef || 0.2); on.push(1); ux.push(w.ux);
+  }
+  // scene light colour: from the selected wall's chromaticity vs neutral, at low strength (walls are rarely pure white)
+  const ws = walls[sel] || walls[0];
+  if (ws) { const r = ws.rc * 3, g = ws.rg * 3, b = 3 - r - g, ly = lum3(r, g, b) || 1; tint = [r, g, b].map(c => 0.7 + 0.3 * c / ly); }
+  gl.uniform3fv(U.uRef, ref); gl.uniform3fv(U.uA, A); gl.uniform3fv(U.uB, B); gl.uniform3fv(U.uTap, tap);
+  gl.uniform1fv(U.uPat, pat); gl.uniform1fv(U.uSpec, spec); gl.uniform1fv(U.uYRef, yref); gl.uniform1fv(U.uOn, on); gl.uniform1fv(U.uUx, ux);
+  gl.uniform3f(U.uTint, tint[0], tint[1], tint[2]);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ------------------------------------------------------------------ loop
+let lastVideoTime = -1, tStart = 0;
+function loop(now) {
+  if (!running) return;
+  if (demo) renderDemoFrame(now);
+  const fresh = demo || video.currentTime !== lastVideoTime;
+  if (fresh && !held) { lastVideoTime = video.currentTime; analyseFrame(); stats.frames++; }
+  draw(now);
+  if (stats.lastT) stats.fps = stats.fps * 0.92 + 0.08 * (1000 / Math.max(1, now - stats.lastT));
+  stats.lastT = now;
+  if (stats.frames % 8 === 0) updateLiveUI();
+  // keep it smooth on older phones: drop render resolution first, then tracking resolution
+  if (stats.fps && stats.fps < 24) stats.slow++; else stats.slow = Math.max(0, stats.slow - 1);
+  if (stats.slow > 60 && renderScale > 0.5) { renderScale = Math.max(0.5, renderScale * 0.75); stats.slow = 0; resize(); }
+  if (stats.frames === 90 && stats.trackMs > 14 && Math.max(lw, lh) > 120) { { const k = 128 / Math.max(srcW, srcH); allocBuffers(Math.round(srcW * k), Math.round(srcH * k)); } walls.forEach(w => { w.m = new Float32Array(n); w.core = new Uint8Array(n); w.floor = new Float32Array(lw); w.fresh = true; w.lost = 13; }); }
+  requestAnimationFrame(loop);
+}
+
+function startWith(source, w, h) {
+  src = source; srcW = w; srcH = h;
+  { const k = 160 / Math.max(w, h); allocBuffers(Math.max(48, Math.round(w * k)), Math.max(48, Math.round(h * k))); }
+  $("intro").hidden = true; ["top", "dock"].forEach(id => $(id).hidden = false);
+  $("reticle").hidden = false; coach("Point at a wall, then tap it");
+  resize(); running = true; tStart = performance.now(); requestAnimationFrame(loop);
+  // first-run nicety: in the demo, paint the main wall automatically after a moment
+  if (demo) setTimeout(() => { if (!walls.length) tapAt(0.55, 0.30, true); }, 900);
+}
+
+async function startCamera() {
+  const err = $("camErr"); err.hidden = true;
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    err.textContent = "The camera needs a secure link. Open this page over https:// (or localhost), then try again. You can use the demo room meanwhile.";
+    err.hidden = false; return;
+  }
+  $("startCam").disabled = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false,
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+    video.srcObject = stream; await video.play();
+    await new Promise(r => video.videoWidth ? r() : video.addEventListener("loadedmetadata", r, { once: true }));
+    demo = false; startWith(video, video.videoWidth, video.videoHeight);
+    // keep the right aspect if the phone rotates (track settings change)
+    video.addEventListener("resize", () => { if (video.videoWidth && (video.videoWidth !== srcW || video.videoHeight !== srcH)) {
+      srcW = video.videoWidth; srcH = video.videoHeight; { const k = 160 / Math.max(srcW, srcH); allocBuffers(Math.round(srcW * k), Math.round(srcH * k)); } clearWalls(false); } });
+  } catch (e) {
+    const name = e && e.name;
+    err.textContent = name === "NotAllowedError" ? "Camera access was blocked. Allow the camera for this site in your browser settings, then tap Start camera again."
+      : name === "NotFoundError" || name === "OverconstrainedError" ? "No camera was found on this device. Try the demo room instead."
+      : name === "NotReadableError" ? "Another app is using the camera. Close it and try again."
+      : "The camera couldn’t start (" + (e?.message || name || "unknown error") + ").";
+    err.hidden = false;
+  } finally { $("startCam").disabled = false; }
+}
+
+// ------------------------------------------------------------------ demo room (moving virtual camera)
+let scene = null, demoCanvas = null, dctx = null;
+function buildScene() {
+  const SW = 1500, SH = 900, FLOOR = 760;
+  const c = document.createElement("canvas"); c.width = SW; c.height = SH;
+  const g = c.getContext("2d"), img = g.createImageData(SW, SH), D = img.data;
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+  const noise = new Float32Array(SW * SH); for (let i = 0; i < noise.length; i++) noise[i] = rnd();
+  const t1 = new Float32Array(SW * SH); boxBlur(noise, SW, SH, 2, t1);
+  const enc = v => { v = Math.max(0, Math.min(1, v)); return Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1/2.4) - 0.055)); };
+  const put = (i, r, gg, b) => { D[i*4] = enc(r); D[i*4+1] = enc(gg); D[i*4+2] = enc(b); D[i*4+3] = 255; };
+  for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+    const i = y * SW + x;
+    if (y >= FLOOR) { const k = 0.75 + 0.25 * Math.sin(x / 11 + Math.sin(y / 40)); put(i, 0.20 * k, 0.12 * k, 0.07 * k); continue; }
+    const win = 0.35 + 0.55 * Math.exp(-(((x - 140) / 520) ** 2));
+    const lamp = 0.30 * Math.exp(-(((x - 980) / 170) ** 2 + ((y - 260) / 150) ** 2));
+    const shadow = 1 - 0.40 * Math.exp(-(((x - 700) / 330) ** 4 + ((y - 660) / 90) ** 2));
+    const l = ((win + lamp) * shadow) * (1 + noise[i] * 0.18);
+    put(i, 0.62 * l, 0.59 * l, 0.53 * l);
+  }
+  g.putImageData(img, 0, 0);
+  const rect = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  rect(0, FLOOR - 18, SW, 18, "#EDEBE6");                                    // skirting
+  rect(90, 120, 330, 400, "#F2F0EB"); rect(102, 132, 148, 376, "#BBD3E6"); rect(262, 132, 146, 376, "#C6DBEA"); // window
+  rect(1180, 250, 190, FLOOR - 250, "#F2F0EB"); rect(1190, 260, 170, FLOOR - 260, "#7A5236"); rect(1205, 520, 22, 12, "#D8D2C8"); // door
+  rect(1090, 430, 34, 52, "#F7F5F0"); rect(1100, 444, 14, 22, "#E2DED6");     // switchboard
+  g.fillStyle = "#2F3237"; g.beginPath(); g.roundRect ? g.roundRect(380, 560, 640, 260, 26) : g.rect(380, 560, 640, 260); g.fill(); // sofa
+  rect(410, 530, 140, 80, "#B9A88E"); rect(850, 535, 140, 75, "#8E9A85");     // cushions
+  rect(1060, 640, 90, 120, "#5C4634"); g.fillStyle = "#3D5A40"; g.beginPath(); g.arc(1105, 560, 70, 0, Math.PI * 2); g.fill(); // plant
+  rect(590, 180, 220, 150, "#E8E2D6"); rect(600, 190, 200, 130, "#6F8796");   // framed art
+  scene = c;
+  demoCanvas = document.createElement("canvas"); demoCanvas.width = 960; demoCanvas.height = 540; dctx = demoCanvas.getContext("2d");
+}
+function renderDemoFrame(now) {
+  const t = (now - tStart) / 1000;
+  const zoom = 1 + 0.06 * Math.sin(t * 0.31);
+  const w = 1120 / zoom, h = w * 540 / 960;
+  const x = 190 + 170 * Math.sin(t * 0.37), y = 120 + 40 * Math.sin(t * 0.53 + 1);
+  dctx.drawImage(scene, x, y, w, h, 0, 0, 960, 540);
+  // gentle auto-exposure breathing, like a real phone camera
+  const e = 0.03 * Math.sin(t * 0.9);
+  if (e) { dctx.fillStyle = e > 0 ? `rgba(255,255,255,${e})` : `rgba(0,0,0,${-e})`; dctx.fillRect(0, 0, 960, 540); }
+}
+function startDemo() { if (!scene) buildScene(); demo = true; startWith(demoCanvas, 960, 540); }
+
+// ------------------------------------------------------------------ interaction
+function screenToCam(cx, cy) {
+  const sc = coverScale(), vx = cx / innerWidth, vy = cy / innerHeight;
+  return [(vx - 0.5) * sc[0] + 0.5, (vy - 0.5) * sc[1] + 0.5];
+}
+function snapshot() { undoStack.push({ list: walls.slice(), looks: walls.map(w => ({ ...w.look })), sel, look: { ...look } }); if (undoStack.length > 40) undoStack.shift(); $("undoBtn").disabled = false; }
+function undo() {
+  const s = undoStack.pop(); if (!s) return;
+  walls.length = 0; s.list.forEach((w, i) => { w.look = s.looks[i]; walls.push(w); });
+  sel = s.sel; look = s.look; $("undoBtn").disabled = !undoStack.length; haptic(8); syncUI();
+}
+function tapAt(u, v, auto = false) {
+  if (u < 0 || v < 0 || u > 1 || v > 1) return;
+  const x = Math.round(u * (lw - 1)), y = Math.round(v * (lh - 1)), i = y * lw + x;
+  const now = performance.now() / 1000;
+  const hit = walls.findIndex(w => w.m[i] > 0.5);
+  if (hit >= 0) {
+    snapshot(); sel = hit; walls[hit].look = { ...look }; walls[hit].tap = { x: u, y: v, t: now }; walls[hit].ux = u;
+    haptic(); syncUI(); return;
+  }
+  if (GR[i] > edgeThreshold() * 1.5) { if (!auto) toast("Tap a plain part of the wall"); return; }
+  snapshot();
+  const w = { rc: avg(CR, x, y), rg: avg(CG, x, y), m: new Float32Array(n), core: new Uint8Array(n), floor: new Float32Array(lw), lost: 0, fresh: true,
+              seed: { x: u, y: v }, look: { ...look }, yRef: 0, tap: { x: u, y: v, t: now }, ux: u, coverage: 0, everFound: false };
+  if (walls.length >= MAX_WALLS) walls.shift();
+  walls.push(w); sel = walls.length - 1;
+  $("reticle").hidden = true;
+  haptic(16); syncUI();
+  setTimeout(() => { if (!w.everFound && walls.includes(w)) { walls.splice(walls.indexOf(w), 1); sel = walls.length - 1; syncUI();
+    toast("That doesn’t look like a wall. Try a plain area, or raise the edge sensitivity."); } }, 700);
+}
+function avg(arr, x, y) { let s = 0, c = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+  const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < lw && yy < lh) { s += arr[yy * lw + xx]; c++; } } return s / c; }
+function clearWalls(record = true) { if (record) snapshot(); walls.length = 0; sel = -1; $("reticle").hidden = false; syncUI(); }
+
+let dragging = false, downAt = null;
+canvas.addEventListener("pointerdown", e => {
+  if (compare) { dragging = true; canvas.setPointerCapture(e.pointerId); split = Math.min(1, Math.max(0, e.clientX / innerWidth)); updateSplitUI(); return; }
+  downAt = [e.clientX, e.clientY];
+});
+canvas.addEventListener("pointermove", e => { if (dragging) { split = Math.min(1, Math.max(0, e.clientX / innerWidth)); updateSplitUI(); } });
+canvas.addEventListener("pointerup", e => {
+  if (dragging) { dragging = false; return; }
+  if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 14) { const [u, v] = screenToCam(e.clientX, e.clientY); tapAt(u, v); }
+  downAt = null; $("sheet").hidden = true; $("gearBtn").setAttribute("aria-pressed", "false");
+});
+canvas.addEventListener("pointercancel", () => { dragging = false; downAt = null; });
+
+function applyLook(patch) {
+  snapshot(); look = { ...look, ...patch };
+  const w = walls[sel]; if (w) w.look = { ...look };
+  haptic(6); syncUI();
+}
+function pickColor(hex, name) { applyLook(editB && look.pattern ? { b: hex, nameB: name } : { a: hex, nameA: name }); }
+
+// ------------------------------------------------------------------ UI
+function syncUI() {
+  const p = PATTERNS[look.pattern];
+  const dots = $("curDots"); dots.textContent = "";
+  [look.a].concat(look.pattern ? [look.b] : []).forEach(h => { const s = document.createElement("span"); s.className = "dot"; s.style.background = h; dots.append(s); });
+  $("curName").textContent = look.pattern ? `${look.nameA} + ${look.nameB}` : look.nameA;
+  $("curSub").textContent = `${p.label} · ${FINISHES[look.finish][1]}` + (walls.length ? "" : " · tap a wall");
+  $("editRow").hidden = !look.pattern; if (!look.pattern) editB = false;
+  $("editA").setAttribute("aria-pressed", String(!editB)); $("editB").setAttribute("aria-pressed", String(editB));
+  const active = editB ? look.b : look.a;
+  document.querySelectorAll(".sw-b[data-hex]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.hex === active)));
+  document.querySelectorAll("#finishes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === look.finish)));
+  document.querySelectorAll(".pat").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.p === look.pattern)));
+  $("patHint").textContent = p.hint + " Designs use the visible wall width set in Settings.";
+  drawThumbs();
+  const wl = $("walls"); wl.textContent = "";
+  walls.forEach((w, i) => {
+    const c = document.createElement("span"); c.className = "wchip" + (i === sel ? " on" : "") + (w.lost > 12 ? " lost" : "");
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-label", `Select wall ${i + 1}`);
+    const s = document.createElement("span"); s.className = "sw"; s.style.background = w.look.a;
+    b.append(s, document.createTextNode(`Wall ${i + 1}`));
+    b.onclick = () => { sel = i; look = { ...w.look }; syncUI(); };
+    const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "×"; x.setAttribute("aria-label", `Remove wall ${i + 1}`);
+    x.onclick = () => { snapshot(); walls.splice(i, 1); sel = walls.length - 1; if (!walls.length) $("reticle").hidden = false; syncUI(); };
+    c.append(b, x); wl.append(c);
+  });
+}
+function updateLiveUI() {
+  $("liveDot").className = "live-dot" + (held ? " hold" : "");
+  const w = walls[sel];
+  if (held) coach("Frame held. Try colours, then tap Resume");
+  else if (!walls.length) coach(demo ? "Demo room · tap any wall to paint it" : "Point at a wall, then tap it");
+  else if (w && w.lost > 12) coach("Wall lost. Point back at it");
+  else coach("");
+  $("topSub").textContent = held ? "Held" : !walls.length ? "Point at a wall" : `${walls.length} wall${walls.length > 1 ? "s" : ""} · move freely`;
+  document.querySelectorAll(".wchip").forEach((c, i) => c.classList.toggle("lost", (walls[i]?.lost || 0) > 12));
+  if (!$("stats").hidden) {
+    $("stats").textContent = `render  ${stats.fps.toFixed(0)} fps @ ${canvas.width}×${canvas.height}\ntrack   ${stats.trackMs.toFixed(1)} ms cpu @ ${lw}×${lh}\nread    ${stats.readMs.toFixed(1)} ms frame copy\nsource  ${srcW}×${srcH}${demo ? " (demo)" : ""}\n` +
+      walls.map((w, i) => `wall ${i + 1}  ${(w.coverage * 100).toFixed(0).padStart(3)}%  ${w.lost ? "lost " + w.lost : "tracking"}  yRef ${(w.yRef || 0).toFixed(3)}`).join("\n");
+  }
+}
+function updateSplitUI() {
+  const on = compare; $("split").hidden = !on; $("tagBefore").hidden = !on; $("tagAfter").hidden = !on;
+  if (on) { const px = split * innerWidth; $("split").style.left = px + "px";
+    $("tagBefore").style.left = Math.max(10, px - 84) + "px"; $("tagAfter").style.left = (px + 12) + "px"; }
+}
+function drawThumbs() {
+  const A = hexRgb(look.a), B = hexRgb(look.b || "#C46A4A");
+  document.querySelectorAll(".pat canvas").forEach(c => {
+    const p = +c.parentElement.dataset.p, g = c.getContext("2d"), W = c.width, H = c.height, img = g.createImageData(W, H), mpp = 3 / W;
+    const aa = (e, x) => Math.max(0, Math.min(1, (x - e) / mpp * 0.5 + 0.5)), pm = (x, m) => x - m * Math.floor(x / m);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const u = x * mpp, v = (H - y) * mpp; let wt = 0;
+      if (p === 1) wt = 1 - aa(0.95, v);
+      else if (p === 2) { const t = pm(u, 0.6); wt = aa(0.3, t) * (1 - aa(0.6 - mpp, t)); }
+      else if (p === 3) { const t = pm(v, 0.5); wt = aa(0.25, t) * (1 - aa(0.5 - mpp, t)); }
+      else if (p === 4) { const t = Math.min(1, Math.max(0, (v - 0.3) / 1.9)); wt = 1 - t * t * (3 - 2 * t); }
+      else if (p === 5) { const tri = 1 - Math.abs(2 * pm(u / 1.6, 1) - 1); wt = 1 - aa(0.9 + 0.7 * tri, v); }
+      else if (p === 6) { const r = 0.7, sp = 1.4, cx = 1.5; wt = Math.min(1, (1 - aa(r, Math.abs(u - cx))) * (1 - aa(sp, v)) + (1 - aa(r, Math.hypot(u - cx, v - sp))) * aa(sp, v)); }
+      else if (p === 7) wt = aa(0.9, u) * (1 - aa(2.1, u)) * (1 - aa(1.8, v));
+      const j = (y * W + x) * 4;
+      img.data[j] = A[0] + (B[0] - A[0]) * wt; img.data[j + 1] = A[1] + (B[1] - A[1]) * wt; img.data[j + 2] = A[2] + (B[2] - A[2]) * wt; img.data[j + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  });
+}
+function buildControls() {
+  const sw = $("swatches");
+  COLORS.forEach(([hex, name]) => { const b = document.createElement("button"); b.type = "button"; b.className = "sw-b"; b.dataset.hex = hex; b.setAttribute("aria-label", name);
+    const i = document.createElement("i"); i.style.background = hex; const s = document.createElement("span"); s.textContent = name;
+    b.append(i, s); b.onclick = () => pickColor(hex, name); sw.append(b); });
+  const any = document.createElement("label"); any.className = "sw-b anyc"; any.innerHTML = `<i></i><span>Any colour</span><input type="color" id="anyColor" value="#9caf88" aria-label="Pick any colour">`;
+  sw.append(any); any.querySelector("input").addEventListener("input", e => { const h = e.target.value.toUpperCase(); pickColor(h, h); });
+  const fz = $("finishes");
+  Object.entries(FINISHES).forEach(([k, [, label]]) => { const b = document.createElement("button"); b.type = "button"; b.dataset.f = k; b.textContent = label; b.onclick = () => applyLook({ finish: k }); fz.append(b); });
+  const pz = $("patterns");
+  PATTERNS.forEach(p => { const b = document.createElement("button"); b.type = "button"; b.className = "pat"; b.dataset.p = p.id;
+    const c = document.createElement("canvas"); c.width = 72; c.height = 58; c.setAttribute("aria-hidden", "true");
+    const s = document.createElement("span"); s.textContent = p.label; b.append(c, s);
+    b.onclick = () => { applyLook({ pattern: p.id }); editB = p.id > 0; syncUI(); }; pz.append(b); });
+  const sz = $("styles");
+  STYLES.forEach(s => { const b = document.createElement("button"); b.type = "button"; b.className = "sty";
+    const strip = document.createElement("span"); strip.className = "strip"; s.sw.forEach(c => { const i = document.createElement("i"); i.style.background = c; strip.append(i); });
+    const t = document.createElement("b"); t.textContent = s.name; const m = document.createElement("small"); m.textContent = s.mood;
+    b.append(strip, t, m); b.onclick = () => { applyLook({ b: s.look.a, nameB: s.look.nameA, ...s.look }); if (!walls.length) toast("Tap a wall to apply " + s.name); }; sz.append(b); });
+  $("editA").onclick = () => { editB = false; syncUI(); };
+  $("editB").onclick = () => { editB = true; syncUI(); };
+  ["colours", "designs", "styles", "read"].forEach(t => $("t-" + t).addEventListener("click", () => {
+    ["colours", "designs", "styles", "read"].forEach(o => { $("t-" + o).setAttribute("aria-selected", String(o === t)); $("p-" + o).hidden = o !== t; }); }));
+}
+
+// ------------------------------------------------------------------ room read (on-device measurement, port of room_analysis.measure_room)
+function readRoom() {
+  const w = walls[sel];
+  let pr = 0, pg = 0, pb = 0, cnt = 0, sumY = 0, left = 0, right = 0, ln = 0, rn = 0, wr = 0, wg = 0, wb = 0, wc = 0;
+  const d = actx.getImageData(0, 0, lw, lh).data;
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    const r = LIN[d[j]], g = LIN[d[j+1]], b = LIN[d[j+2]], y = lum3(r, g, b), x = i % lw;
+    sumY += y; const onW = w ? w.m[i] > 0.5 : true;
+    if (onW) { if (x < lw / 3) { left += y; ln++; } else if (x > 2 * lw / 3) { right += y; rn++; } wr += r; wg += g; wb += b; wc++; }
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (onW && y > 0.02 && (mx - mn) / (mx + 1e-6) < 0.45) { pr += r ** 6; pg += g ** 6; pb += b ** 6; cnt++; }
+  }
+  const il = cnt ? [pr / cnt, pg / cnt, pb / cnt].map(v => Math.pow(v, 1 / 6)) : [1, 1, 1];
+  const X = .4124*il[0]+.3576*il[1]+.1805*il[2], Yy = .2126*il[0]+.7152*il[1]+.0722*il[2], Z = .0193*il[0]+.1192*il[1]+.9505*il[2];
+  const sx = X / (X + Yy + Z), sy = Yy / (X + Yy + Z), nn = (sx - 0.3320) / (0.1858 - sy);
+  const cct = Math.round(Math.min(10000, Math.max(1800, 449*nn**3 + 3525*nn**2 + 6823.3*nn + 5520.33)) / 50) * 50;
+  const meanY = sumY / n, ratio = (left / (ln || 1) + 1e-6) / (right / (rn || 1) + 1e-6);
+  const m = { k: cct, label: cct < 3200 ? "Warm incandescent" : cct < 4200 ? "Warm white" : cct < 5600 ? "Neutral daylight" : "Cool daylight",
+              bright: meanY < 0.08 ? "Dim" : meanY > 0.3 ? "Bright" : "Medium", dir: ratio > 1.25 ? "from left" : ratio < 0.8 ? "from right" : "even" };
+  const wallHex = wc ? (() => { const s = wr + wg + wb || 1, mx = Math.max(wr, wg, wb) / s * 3; return linToHex(wr / s * 3 / mx * 0.8, wg / s * 3 / mx * 0.8, wb / s * 3 / mx * 0.8); })() : null;
+  const tone = wallHex ? undertone(wallHex) : null;
+  const score = p => { let s = 0, pl = lrv(p.colors[0][1]);
+    if (cct < 3500 && p.tone === "cool") s -= 2; if (cct > 5600 && p.tone === "warm") s += 0.5;
+    if (m.bright === "Dim" && pl < 40) s -= 1.5; if (m.bright === "Bright" && pl < 20) s += 0.5; if (tone && p.tone === tone) s += 0.4; return s; };
+  const pals = [...CURATED].sort((a, b) => score(b) - score(a)).slice(0, 3);
+  const out = $("readOut"); out.textContent = "";
+  const facts = document.createElement("div"); facts.className = "facts";
+  [[`${cct.toLocaleString()} K`, m.label], [m.bright, `Light ${m.dir}`], [tone ? tone[0].toUpperCase() + tone.slice(1) : "—", "Wall undertone"]].forEach(([b, s]) => {
+    const f = document.createElement("div"); f.className = "fact"; const bb = document.createElement("b"); bb.textContent = b; const ss = document.createElement("span"); ss.textContent = s; f.append(bb, ss); facts.append(f); });
+  out.append(facts);
+  if (!w) { const h = document.createElement("span"); h.className = "hint"; h.textContent = "Tip: tap a wall first for a more accurate reading of that wall."; out.append(h); }
+  pals.forEach(p => {
+    const card = document.createElement("article"); card.className = "pal";
+    const strip = document.createElement("div"); strip.className = "strip"; p.colors.forEach(c => { const i = document.createElement("i"); i.style.background = c[1]; strip.append(i); });
+    const body = document.createElement("div"); body.className = "body";
+    const h = document.createElement("h3"); h.textContent = p.name;
+    const ps = document.createElement("p"); ps.textContent = p.psychology;
+    const why = document.createElement("p"); why.textContent = `Chosen for ${m.label.toLowerCase()} light (about ${cct.toLocaleString()} K) in a ${m.bright.toLowerCase()} room.`;
+    body.append(h, ps, why);
+    if (cct < 3500 && p.tone === "cool") { const wn = document.createElement("span"); wn.className = "warn"; wn.textContent = "Your light is warm, so this cool palette may look greyer at night."; body.append(wn); }
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "try"; btn.textContent = "Try on my wall";
+    btn.onclick = () => { const [pri, sec] = [p.colors[0], p.colors[1]];
+      applyLook({ a: pri[1], nameA: pri[2], b: sec[1], nameB: sec[2], pattern: p.pattern });
+      toast(walls.length ? `${p.name} applied` : "Tap a wall to apply it"); };
+    body.append(btn); card.append(strip, body); out.append(card);
+  });
+}
+
+// ------------------------------------------------------------------ buttons
+$("startCam").onclick = () => { try { initOnce(); startCamera(); } catch (e) { showFatal(e); } };
+$("startDemo").onclick = () => { try { initOnce(); startDemo(); } catch (e) { showFatal(e); } };
+$("undoBtn").onclick = undo;
+$("holdBtn").onclick = () => { held = !held; $("holdBtn").setAttribute("aria-pressed", String(held)); $("holdBtn").setAttribute("aria-label", held ? "Resume live" : "Hold frame"); updateLiveUI(); };
+$("cmpBtn").onclick = () => { compare = !compare; $("cmpBtn").setAttribute("aria-pressed", String(compare)); split = 0.5; updateSplitUI(); };
+$("gearBtn").onclick = () => { const s = $("sheet"); s.hidden = !s.hidden; $("gearBtn").setAttribute("aria-pressed", String(!s.hidden)); };
+$("engMode").onchange = e => { $("stats").hidden = !e.target.checked; };
+$("maskView").onchange = () => {};
+$("wallWidth").oninput = e => { $("wallWidthV").textContent = e.target.value + " m"; };
+$("resetBtn").onclick = () => clearWalls(true);
+$("readBtn").onclick = readRoom;
+$("shotBtn").onclick = () => {
+  draw(performance.now());
+  canvas.toBlob(async blob => {
+    if (!blob) return toast("Couldn’t capture the photo");
+    const f = document.createElement("div"); f.className = "flash"; document.body.append(f); setTimeout(() => f.remove(), 500); haptic(20);
+    const file = new File([blob], "my-new-wall.png", { type: "image/png" });
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "My new wall" }); return; } } catch (e) { if (e?.name === "AbortError") return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "my-new-wall.png"; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast("Photo saved");
+  }, "image/png");
+};
+window.addEventListener("resize", () => running && resize());
+document.addEventListener("visibilitychange", () => { if (!document.hidden && running && video.srcObject) video.play().catch(() => {}); });
+
+let inited = false;
+function initOnce() { if (inited) return; initGL(); buildControls(); syncUI(); inited = true; }
+function showFatal(e) { const err = $("camErr"); err.textContent = "This browser can’t run live painting: " + (e?.message || e); err.hidden = false; }
+// Installable app (PWA): offline shell + home-screen icon
+if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("installBtn").hidden = false; });
+$("installBtn").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; $("installBtn").hidden = true; };
+const standalone = matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches || navigator.standalone;
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !standalone) $("iosHint").hidden = false;
+// Engineers: ?demo opens the demo room directly, ?eng turns on engineer mode.
+const qs = new URLSearchParams(location.search);
+if (qs.has("eng")) { $("engMode").checked = true; $("stats").hidden = false; }
+if (qs.has("demo")) { try { initOnce(); startDemo(); } catch (e) { showFatal(e); } }
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+// Merge into android/app/build.gradle(.kts)
+android {
+    defaultConfig { minSdk 24 }                       // ARCore minimum
+    androidResources { noCompress 'tflite' }          // memory-map the model
+}
+dependencies {
+    implementation 'com.google.ar:core:1.46.0'
+    implementation 'org.tensorflow:tensorflow-lite:2.16.1'
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.16.1'
+    implementation 'org.tensorflow:tensorflow-lite-gpu-api:2.16.1'
+}
+// Put wall_segmenter_fp16.tflite (model export pipeline) in android/app/src/main/assets/

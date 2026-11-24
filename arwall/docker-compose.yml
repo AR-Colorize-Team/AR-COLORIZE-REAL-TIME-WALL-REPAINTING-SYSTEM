@@ -1,0 +1,25 @@
+# Local development stack: Postgres + API (+ LocalStack for S3/SQS).
+services:
+  db:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: arwall }
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+      - pgdata:/var/lib/postgresql/data
+  localstack:
+    image: localstack/localstack:3
+    environment: { SERVICES: "s3,sqs" }
+    ports: ["4566:4566"]
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/arwall
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports: ["8000:8000"]
+    depends_on: [db, localstack]
+volumes:
+  pgdata:
